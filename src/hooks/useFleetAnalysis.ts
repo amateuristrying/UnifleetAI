@@ -2,18 +2,7 @@ import { useMemo } from 'react';
 import type { NavixyTrackerState } from '@/services/navixy';
 import { getVehicleStatus } from './useTrackerStatusDuration';
 import * as turf from '@turf/turf';
-import type { FleetAnalysis } from '@/types/fleet-analysis';
-
-export type ZoneType = 'port' | 'border' | 'warehouse' | 'mining' | 'road';
-
-export interface OperationalZone {
-    name: string;
-    type: ZoneType;
-    lat: number;
-    lng: number;
-    radiusKm: number;
-    threshold_mins?: number;
-}
+import type { FleetAnalysis, OperationalZone, ActionItem } from '@/types/fleet-analysis';
 
 // Configuration
 export const CRITICAL_ZONES: OperationalZone[] = [
@@ -24,17 +13,7 @@ export const CRITICAL_ZONES: OperationalZone[] = [
     { name: 'Kansanshi Mine Access', type: 'mining', lat: -11.6, lng: 27.5, radiusKm: 3 }
 ];
 
-export interface ActionItem {
-    id: string;
-    severity: 'high' | 'medium' | 'low';
-    title: string;
-    location: string;
-    lat: number;
-    lng: number;
-    count: number;
-    action: string;
-    type: ZoneType;
-}
+
 
 export function useFleetAnalysis(trackers: Record<number, NavixyTrackerState>) {
     return useMemo((): FleetAnalysis | null => {

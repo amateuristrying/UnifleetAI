@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { NavixyTrackerState } from '@/services/navixy';
-import type { FleetAnalysis, ActionItem } from '@/hooks/useFleetAnalysis';
+import type { FleetAnalysis, ActionItem } from '@/types/fleet-analysis';
 import { getVehicleStatus } from '@/hooks/useTrackerStatusDuration';
 import { parseNavixyDate } from '@/lib/utils';
 import GeofenceMapOverlay from '../geofence/GeofenceMapOverlay';

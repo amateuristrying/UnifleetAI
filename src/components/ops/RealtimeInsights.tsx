@@ -13,7 +13,7 @@ import {
     X,
     Clock
 } from 'lucide-react';
-import type { FleetAnalysis, ZoneType, ActionItem } from '@/hooks/useFleetAnalysis';
+import type { FleetAnalysis, ZoneType, ActionItem } from '@/types/fleet-analysis';
 import type { Geofence } from '@/types/geofence';
 import { cn } from '@/lib/utils';
 
@@ -135,7 +135,7 @@ export default function RealtimeInsights({
         });
     };
 
-    const filteredActions = analysis.actions.filter(a => {
+    const filteredActions = analysis.actions.filter((a: ActionItem) => {
         if (currentView === 'traffic') return true;
         if (currentView === 'geofences') return a.type !== 'road';
         return true;
@@ -331,7 +331,7 @@ export default function RealtimeInsights({
                         <p className="text-[10px] font-bold text-emerald-600/50 uppercase">No anomalies detected in current radius</p>
                     </div>
                 ) : (
-                    filteredActions.map((item) => (
+                    filteredActions.map((item: ActionItem) => (
                         <div
                             key={item.id}
                             onClick={() => handleActionClick(item)}

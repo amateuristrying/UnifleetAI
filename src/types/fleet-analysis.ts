@@ -1,4 +1,25 @@
-// Fleet Pulse Analysis Types
+export type ZoneType = 'port' | 'border' | 'warehouse' | 'mining' | 'road';
+
+export interface ActionItem {
+    id: string;
+    severity: 'high' | 'medium' | 'low';
+    title: string;
+    location: string;
+    lat: number;
+    lng: number;
+    count: number;
+    action: string;
+    type: ZoneType;
+}
+
+export interface OperationalZone {
+    name: string;
+    type: ZoneType;
+    lat: number;
+    lng: number;
+    radiusKm: number;
+    threshold_mins?: number;
+}
 
 export interface FleetAnalysis {
     total: number;
@@ -15,7 +36,7 @@ export interface FleetAnalysis {
     totalIdlingTime: number; // Total idling time (mocked for now)
     avgDrivingHours: number; // Avg driving hours/day
     nightDrivingHrs: number; // Night driving hours
-    actions?: any[];        // Ops actions from zone analysis
+    actions: ActionItem[];   // Ops actions from zone analysis
     zoneOccupancy?: Record<string, number>;
 }
 

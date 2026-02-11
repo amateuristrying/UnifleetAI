@@ -1,0 +1,76 @@
+{
+    "rewrites": [
+        {
+            "source": "/api/navixy/:path*",
+            "destination": "https://api.navixy.com/v2/:path*"
+        },
+        {
+            "source": "/api/zambia/summary/:path*",
+            "destination": "https://91r76oqquk.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/zambia/assets/:path*",
+            "destination": "https://ds16ac8znh.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/zambia/movement/:path*",
+            "destination": "https://76bfo56hol.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/zambia/fuel/:path*",
+            "destination": "https://fufmz5ihve.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/zambia/night/:path*",
+            "destination": "https://b8wxy2cdzb.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/zambia/speed/:path*",
+            "destination": "https://hg6ik4rxm7.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/zambia/geofence/:path*",
+            "destination": "https://eoa4peaw4d.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/zambia/vehiclewise/:path*",
+            "destination": "https://nntlwpg28e.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/summaryapi/:path*",
+            "destination": "https://6s4huxb9i1.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/assets/:path*",
+            "destination": "https://pjagc4397d.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/movement/:path*",
+            "destination": "https://jvpjgxnfxf.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/fuel/:path*",
+            "destination": "https://f53djzy7o9.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/night/:path*",
+            "destination": "https://vofgulra92.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/speed/:path*",
+            "destination": "https://v6279woeyl.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/geofence/:path*",
+            "destination": "https://zdcs5c36ac.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/api/tanzania/vehiclewise/:path*",
+            "destination": "https://jffvmywo20.execute-api.ap-south-1.amazonaws.com/:path*"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ]
+}

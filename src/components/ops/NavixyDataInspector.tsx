@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { NavixyTrackerState } from '@/services/navixy';
 import { getVehicleStatus } from '@/hooks/useTrackerStatusDuration';
-import { calculateEngineMetrics, formatDuration } from '@/lib/engine-hours';
+
 import { EyeOff, Code } from 'lucide-react';
 
 interface NavixyDataInspectorProps {
