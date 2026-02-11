@@ -1,21 +1,24 @@
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import React, { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import {
-    MapPin, Plus, Clock, ArrowLeft,
+    MapPin, Plus, Trash2, Clock, ArrowLeft,
     Anchor, Files, Warehouse, Truck, Target,
-    Hexagon, Route, Circle,
-    Eye, Check, RefreshCw
+    Hexagon, Route, Circle, Share2,
 } from 'lucide-react';
 import type { Geofence, CreateZonePayload, GeofenceCategory } from '@/types/geofence';
-import { cn } from '@/lib/utils';
 
 type PanelView = 'list' | 'create' | 'detail';
 
 interface GeofencePanelProps {
     zones: Geofence[];
     selectedZoneId: number | null;
+
     trackerLabels: Record<number, string>;
     onSelectZone: (zoneId: number | null) => void;
     onCreateZone: (payload: CreateZonePayload) => Promise<number | null>;
+    onDeleteZone?: (zoneId: number) => Promise<boolean>; // Made optional to match existing prop usage if any
     onStartDrawing: (mode: 'polygon' | 'corridor' | 'circle') => void;
     onCancelDrawing: () => void;
     drawnPayload?: CreateZonePayload | null;
@@ -26,69 +29,91 @@ interface GeofencePanelProps {
     viewMode?: 'locked' | 'unlocked';
 }
 
+
+
 const categoryIcons: Record<GeofenceCategory, React.ReactNode> = {
-    port: <Anchor size={14} />,
-    border: <Files size={14} />,
-    warehouse: <Warehouse size={14} />,
-    mining: <Truck size={14} />,
-    depot: <Target size={14} />,
-    custom: <MapPin size={14} />,
+    port: <Anchor size={14} className="text-blue-600" />,
+    border: <Files size={14} className="text-amber-600" />,
+    warehouse: <Warehouse size={14} className="text-purple-600" />,
+    mining: <Truck size={14} className="text-slate-600" />,
+    depot: <Target size={14} className="text-emerald-600" />,
+    custom: <MapPin size={14} className="text-sky-600" />,
 };
 
 const categoryLabels: Record<GeofenceCategory, string> = {
-    port: 'Terminal',
-    border: 'Customs',
-    warehouse: 'Hub',
-    mining: 'Mining',
+    port: 'Port / Terminal',
+    border: 'Border / Customs',
+    warehouse: 'Warehouse / Hub',
+    mining: 'Mining Site',
     depot: 'Depot',
-    custom: 'Custom',
+    custom: 'Custom Zone',
 };
-
-function truncateToWords(name: string, maxWords: number = 3): string {
-    const words = name.split(/\s+/);
-    if (words.length <= maxWords) return name;
-    return words.slice(0, maxWords).join(' ') + '…';
-}
-
-const MAX_MONITOR_ZONES = 3;
 
 export default function GeofencePanel({
     zones, selectedZoneId, trackerLabels,
-    onSelectZone, onCreateZone, onStartDrawing, onCancelDrawing,
-    drawnPayload, monitoredZoneIds = [], onMonitorZones,
-    region = 'TZ', onRefresh, viewMode = 'unlocked'
+    onSelectZone, onCreateZone, onDeleteZone, onStartDrawing, onCancelDrawing,
+    drawnPayload, region
 }: GeofencePanelProps) {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
     const [view, setView] = useState<PanelView>('list');
     const [createForm, setCreateForm] = useState({
         name: '',
         category: 'custom' as GeofenceCategory,
         type: 'polygon' as 'polygon' | 'corridor' | 'circle',
-        radius: 1000,
+        radius: 500,
     });
     const [saving, setSaving] = useState(false);
-    const [selectedForMonitor, setSelectedForMonitor] = useState<Set<number>>(new Set());
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    // Force re-render every minute for duration updates
+    const [, setTick] = useState(0);
+    React.useEffect(() => {
+        const timer = setInterval(() => setTick(t => t + 1), 60000);
+        return () => clearInterval(timer);
+    }, []);
 
     const selectedZone = zones.find(z => z.id === selectedZoneId);
 
-    useEffect(() => {
-        if (selectedZoneId && view === 'list') setView('detail');
+    React.useEffect(() => {
+        if (selectedZoneId && view === 'list') {
+            setView('detail');
+        }
     }, [selectedZoneId]);
 
-    const handleCheckboxToggle = (e: React.MouseEvent, zoneId: number) => {
-        e.stopPropagation();
-        setSelectedForMonitor(prev => {
-            const next = new Set(prev);
-            if (next.has(zoneId)) next.delete(zoneId);
-            else if (next.size < MAX_MONITOR_ZONES) next.add(zoneId);
-            return next;
-        });
+    const handleZoneClick = (zoneId: number) => {
+        onSelectZone(zoneId);
+        setView('detail');
+    };
+
+    const handleDelete = async (zoneId: number) => {
+        if (onDeleteZone) {
+            setDeleting(true);
+            await onDeleteZone(zoneId);
+            setDeleting(false);
+            setView('list');
+        }
+    };
+
+    const handleStartDraw = () => {
+        onStartDrawing(createForm.type);
     };
 
     const handleSaveZone = async () => {
-        if (!createForm.name.trim() || !drawnPayload) return;
+        if (!createForm.name.trim()) return;
         setSaving(true);
-        const payload = { ...drawnPayload, label: createForm.name.trim(), category: createForm.category, color: '#3b82f6' };
+
+        let payload: CreateZonePayload;
+        if (drawnPayload) {
+            payload = { ...drawnPayload, label: createForm.name.trim(), category: createForm.category, color: '#3b82f6' };
+        } else if (createForm.type === 'circle') {
+            setSaving(false);
+            return;
+        } else {
+            setSaving(false);
+            return;
+        }
+
         await onCreateZone(payload);
         setSaving(false);
         setCreateForm({ name: '', category: 'custom', type: 'polygon', radius: 500 });
@@ -96,116 +121,76 @@ export default function GeofencePanel({
         setView('list');
     };
 
-    const handleManualRefresh = async (e?: React.MouseEvent) => {
-        if (e) e.stopPropagation();
-        if (onRefresh) {
-            setIsRefreshing(true);
-            await onRefresh();
-            setTimeout(() => setIsRefreshing(false), 800);
-        }
-    };
+    // Sort zones by vehicle count descending
+    const sortedZones = [...zones].sort((a, b) => (b.vehicleCount || 0) - (a.vehicleCount || 0));
 
     // LIST VIEW
     if (view === 'list') {
-        const hasSelections = selectedForMonitor.size > 0;
-        const sortedZones = [...zones].sort((a, b) => b.vehicleCount - a.vehicleCount);
-
         return (
-            <div className="flex flex-col h-full bg-surface-card rounded-2xl border border-border shadow-sm overflow-hidden animate-in fade-in duration-500">
-                <div className="p-4 border-b border-border bg-muted/30">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <MapPin size={18} className="text-primary" />
-                            <h2 className="text-sm font-black text-foreground uppercase tracking-tight">Geofence Registry</h2>
-                        </div>
-                        {viewMode === 'unlocked' && (
+            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Geofence Zones</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{zones.length} zones configured</p>
+                    </div>
+                    <div className="flex gap-2">
+
+                        <button
+                            onClick={() => setView('create')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <Plus size={12} /> Add Zone
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {sortedZones.length === 0 ? (
+                        <div className="text-center py-12">
+                            <MapPin className="mx-auto text-slate-300 mb-3" size={32} />
+                            <p className="text-sm font-medium text-slate-500">No geofence zones</p>
+                            <p className="text-xs text-slate-400 mt-1">Create your first zone to start monitoring</p>
                             <button
                                 onClick={() => setView('create')}
-                                className="p-2 bg-primary text-white rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+                                className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
                             >
-                                <Plus size={16} />
+                                <Plus size={12} className="inline mr-1" /> Create Zone
                             </button>
-                        )}
-                    </div>
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">
-                        {hasSelections ? `Selected: ${selectedForMonitor.size} / ${MAX_MONITOR_ZONES}` : `${zones.length} Active Zones`}
-                    </p>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                    {sortedZones.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-24 text-center">
-                            <MapPin className="text-muted-foreground opacity-10 mb-6" size={48} />
-                            <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">No zones detected</p>
                         </div>
                     ) : (
-                        sortedZones.map(zone => {
-                            const isSelectedForMonitor = selectedForMonitor.has(zone.id);
-                            const isMonitored = monitoredZoneIds.includes(zone.id);
-                            const isActive = selectedZoneId === zone.id;
-
-                            return (
-                                <div
-                                    key={zone.id}
-                                    onClick={() => { onSelectZone(zone.id); setView('detail'); }}
-                                    className={cn(
-                                        "group p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden",
-                                        isActive ? "bg-primary/5 border-primary ring-1 ring-primary/20" : "bg-surface-raised border-border hover:border-primary/40 hover:shadow-md",
-                                        isSelectedForMonitor && "border-emerald-500/50 bg-emerald-500/5"
-                                    )}
-                                >
-                                    <div className="flex items-center justify-between relative z-10">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            {viewMode === 'unlocked' && (
-                                                <button
-                                                    onClick={(e) => handleCheckboxToggle(e, zone.id)}
-                                                    className={cn(
-                                                        "w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all",
-                                                        isSelectedForMonitor ? "bg-emerald-500 border-emerald-500" : "border-border bg-surface-raised group-hover:border-emerald-400"
-                                                    )}
-                                                >
-                                                    {isSelectedForMonitor && <Check size={12} className="text-white" />}
-                                                </button>
-                                            )}
-
-                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: zone.color }} />
-
-                                            <div className="flex flex-col min-w-0">
-                                                <div className="flex items-center gap-1.5 min-w-0">
-                                                    <span className="text-[11px] font-black text-foreground uppercase truncate tracking-tight">{truncateToWords(zone.name, 4)}</span>
-                                                    {isMonitored && <Eye size={10} className="text-primary shrink-0" />}
-                                                </div>
-                                                <div className="flex items-center gap-1.5 mt-0.5">
-                                                    <div className="opacity-50 group-hover:opacity-100 transition-opacity">{categoryIcons[zone.category]}</div>
-                                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{zone.type}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-3 ml-2">
-                                            <div className={cn(
-                                                "px-2 py-1 rounded-lg text-[10px] font-black tracking-tighter transition-all",
-                                                zone.vehicleCount > 0 ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-muted text-muted-foreground"
-                                            )}>
-                                                {zone.vehicleCount}
-                                            </div>
+                        sortedZones.map(zone => (
+                            <div
+                                key={zone.id}
+                                onClick={() => handleZoneClick(zone.id)}
+                                className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedZoneId === zone.id
+                                    ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50/50 dark:bg-blue-900/20'
+                                    : 'border-gray-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm bg-white dark:bg-slate-900'
+                                    }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }}></div>
+                                        <div className="flex items-center gap-1.5">
+                                            {categoryIcons[zone.category]}
+                                            <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{zone.name}</span>
                                         </div>
                                     </div>
-                                    {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />}
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[10px] uppercase text-slate-400 dark:text-slate-500 font-medium">
+                                            {zone.type === 'sausage' ? 'corridor' : zone.type}
+                                        </span>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${zone.vehicleCount > 0
+                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                            }`}>
+                                            {zone.vehicleCount}
+                                        </span>
+                                    </div>
                                 </div>
-                            );
-                        })
+                            </div>
+                        ))
                     )}
                 </div>
-
-                {viewMode === 'unlocked' && hasSelections && (
-                    <div className="p-4 border-t border-border bg-surface-raised animate-in slide-in-from-bottom duration-300">
-                        <div className="flex gap-2">
-                            <button onClick={() => setSelectedForMonitor(new Set())} className="flex-1 h-10 px-4 border border-border rounded-xl text-[10px] font-black uppercase text-muted-foreground hover:bg-muted transition-all">Clear</button>
-                            <button onClick={() => { onMonitorZones?.(Array.from(selectedForMonitor)); setSelectedForMonitor(new Set()); }} className="flex-[2] h-10 px-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">Start Monitor</button>
-                        </div>
-                    </div>
-                )}
             </div>
         );
     }
@@ -213,91 +198,116 @@ export default function GeofencePanel({
     // CREATE VIEW
     if (view === 'create') {
         return (
-            <div className="flex flex-col h-full bg-surface-card rounded-2xl border border-border shadow-sm overflow-hidden animate-in slide-in-from-right duration-500">
-                <div className="p-4 border-b border-border bg-muted/30 flex items-center gap-4">
-                    <button onClick={() => { setView('list'); onCancelDrawing(); }} className="p-2 bg-surface-raised border border-border rounded-xl text-foreground hover:bg-muted transition-all shadow-sm">
+            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
+                    <button
+                        onClick={() => { setView('list'); onCancelDrawing(); }}
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    >
                         <ArrowLeft size={16} />
                     </button>
                     <div>
-                        <h2 className="text-sm font-black text-foreground uppercase tracking-tight leading-none mb-1">Architect Mode</h2>
-                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Define Geo-Boundary</p>
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Create Geofence</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Draw a zone on the map</p>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Zone Identifier</label>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Zone Name</label>
                         <input
                             type="text"
                             value={createForm.name}
-                            onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))}
-                            placeholder="RECOVERY HUB 01"
-                            className="w-full px-4 py-3 bg-surface-raised border border-border rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:opacity-30"
+                            onChange={e => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="e.g., Dar es Salaam Port Terminal"
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-950 dark:text-white"
                         />
                     </div>
 
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Vector Category</label>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Category</label>
                         <div className="grid grid-cols-2 gap-2">
                             {(Object.keys(categoryLabels) as GeofenceCategory[]).map(cat => (
                                 <button
                                     key={cat}
-                                    onClick={() => setCreateForm(p => ({ ...p, category: cat }))}
-                                    className={cn(
-                                        "flex items-center gap-3 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all",
-                                        createForm.category === cat ? "bg-primary/5 border-primary text-primary" : "bg-surface-raised border-border text-muted-foreground hover:border-primary/40"
-                                    )}
+                                    onClick={() => setCreateForm(prev => ({ ...prev, category: cat }))}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${createForm.category === cat
+                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                        : 'border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-300 dark:hover:border-blue-500'
+                                        }`}
                                 >
-                                    {categoryIcons[cat]} {categoryLabels[cat]}
+                                    {categoryIcons[cat]}
+                                    {categoryLabels[cat]}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Geometric Logic</label>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Zone Shape</label>
                         <div className="grid grid-cols-3 gap-2">
                             {[
-                                { val: 'polygon' as const, lbl: 'Polygon', icon: <Hexagon size={16} /> },
-                                { val: 'corridor' as const, lbl: 'Route', icon: <Route size={16} /> },
-                                { val: 'circle' as const, lbl: 'Radial', icon: <Circle size={16} /> },
+                                { value: 'polygon' as const, label: 'Polygon', icon: <Hexagon size={14} /> },
+                                { value: 'corridor' as const, label: 'Corridor', icon: <Route size={14} /> },
+                                { value: 'circle' as const, label: 'Circle', icon: <Circle size={14} /> },
                             ].map(opt => (
                                 <button
-                                    key={opt.val}
-                                    onClick={() => setCreateForm(p => ({ ...p, type: opt.val }))}
-                                    className={cn(
-                                        "flex flex-col items-center gap-2 px-2 py-4 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all",
-                                        createForm.type === opt.val ? "bg-primary/5 border-primary text-primary shadow-inner" : "bg-surface-raised border-border text-muted-foreground hover:border-primary/40"
-                                    )}
+                                    key={opt.value}
+                                    onClick={() => setCreateForm(prev => ({ ...prev, type: opt.value }))}
+                                    className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all ${createForm.type === opt.value
+                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                        : 'border-gray-200 text-slate-600 hover:border-blue-300'
+                                        }`}
                                 >
-                                    {opt.icon} {opt.lbl}
+                                    {opt.icon}
+                                    {opt.label}
                                 </button>
                             ))}
                         </div>
                     </div>
 
+                    {(createForm.type === 'circle' || createForm.type === 'corridor') && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">
+                                {createForm.type === 'circle' ? 'Radius' : 'Corridor Width'} (meters)
+                            </label>
+                            <input
+                                type="number"
+                                value={createForm.radius}
+                                onChange={e => setCreateForm(prev => ({ ...prev, radius: Number(e.target.value) }))}
+                                min={50}
+                                max={50000}
+                                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-950 dark:text-white"
+                            />
+                        </div>
+                    )}
+
                     {!drawnPayload ? (
-                        <button onClick={() => onStartDrawing(createForm.type)} className="w-full h-14 flex items-center justify-center gap-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98]">
-                            <MapPin size={18} /> Initialize Map Capture
+                        <button
+                            onClick={handleStartDraw}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-white text-sm font-bold rounded-lg hover:bg-slate-900 transition-colors"
+                        >
+                            <MapPin size={16} /> Draw on Map
                         </button>
                     ) : (
-                        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center gap-4">
-                            <div className="p-2 bg-emerald-500 rounded-lg text-white shadow-lg shadow-emerald-500/20"><Check size={20} /></div>
-                            <div>
-                                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Vector Data Captured</p>
-                                <p className="text-[9px] font-bold text-emerald-600/70 uppercase">Ready for transmission</p>
-                            </div>
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                            <p className="text-xs font-bold text-green-700">Zone drawn on map</p>
+                            <p className="text-[10px] text-green-600 mt-0.5">
+                                {drawnPayload.type === 'polygon' && drawnPayload.points && `${drawnPayload.points.length} points`}
+                                {(drawnPayload.type === 'sausage' || drawnPayload.type === 'corridor') && drawnPayload.points && `${drawnPayload.points.length} waypoints`}
+                                {drawnPayload.type === 'circle' && `${drawnPayload.radius}m radius`}
+                            </p>
                         </div>
                     )}
                 </div>
 
-                <div className="p-6 border-t border-border bg-surface-raised">
+                <div className="p-4 border-t border-gray-100 dark:border-slate-800">
                     <button
                         onClick={handleSaveZone}
                         disabled={!createForm.name.trim() || !drawnPayload || saving}
-                        className="w-full h-12 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] disabled:opacity-30 disabled:grayscale transition-all"
+                        className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                        {saving ? 'Transmitting...' : 'Register Zone to Network'}
+                        {saving ? 'Saving...' : 'Save Geofence to Navixy'}
                     </button>
                 </div>
             </div>
@@ -307,95 +317,146 @@ export default function GeofencePanel({
     // DETAIL VIEW
     if (view === 'detail' && selectedZone) {
         return (
-            <div className="flex flex-col h-full bg-surface-card rounded-2xl border border-border shadow-sm overflow-hidden animate-in slide-in-from-right duration-500">
-                <div className="p-4 border-b border-border bg-muted/30">
-                    <div className="flex items-center gap-4">
-                        {viewMode === 'unlocked' && (
-                            <button onClick={() => { setView('list'); onSelectZone(null); }} className="p-2 bg-surface-raised border border-border rounded-xl shadow-sm hover:bg-muted transition-all">
-                                <ArrowLeft size={16} />
-                            </button>
-                        )}
-                        <div className="flex-1 min-w-0">
-                            <h2 className="text-sm font-black text-foreground uppercase tracking-tight truncate leading-none mb-1">{selectedZone.name}</h2>
-                            <div className="flex items-center gap-2">
-                                <span className="opacity-50">{categoryIcons[selectedZone.category]}</span>
-                                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{categoryLabels[selectedZone.category]} HUB</span>
-                            </div>
+            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
+                    <button
+                        onClick={() => { setView('list'); onSelectZone(null); }}
+                        className="p-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    >
+                        <ArrowLeft size={16} />
+                    </button>
+                    {/* WhatsApp Share Button */}
+                    <button
+                        onClick={() => {
+                            const baseUrl = window.location.origin + window.location.pathname;
+                            const regionParam = region || 'TZ';
+                            const shareUrl = `${baseUrl}?geofence_id=${selectedZone.id}&view=locked&region=${regionParam}`;
+                            const text = `Live Geofence Monitor: ${selectedZone.name}`;
+                            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + '\n' + shareUrl)}`;
+                            window.open(whatsappUrl, '_blank');
+                        }}
+                        className="p-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 transition-colors"
+                        title="Share Limitless View on WhatsApp"
+                    >
+                        <Share2 size={16} />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{selectedZone.name}</h2>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            {categoryIcons[selectedZone.category]}
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {categoryLabels[selectedZone.category]} &middot; {selectedZone.type === 'sausage' ? 'Corridor' : selectedZone.type}
+                            </span>
                         </div>
-                        <button onClick={handleManualRefresh} className="p-2 bg-surface-raised border border-border rounded-xl shadow-sm hover:bg-muted transition-all group">
-                            <RefreshCw size={16} className={cn("text-muted-foreground group-hover:text-primary transition-colors", isRefreshing && "animate-spin text-primary")} />
-                        </button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-primary/5 rounded-2xl p-5 border border-primary/20 text-center shadow-sm">
-                            <p className="text-3xl font-black text-primary leading-none mb-1">{selectedZone.vehicleCount}</p>
-                            <p className="text-[9px] font-black text-primary/70 uppercase tracking-widest">Live Assets</p>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center border border-blue-100 dark:border-blue-800">
+                            <div className="text-2xl font-black text-blue-700 dark:text-blue-300">{selectedZone.vehicleCount}</div>
+                            <div className="text-[10px] text-blue-500 dark:text-blue-400 font-bold uppercase">Vehicles Inside</div>
                         </div>
-                        <div className="bg-muted rounded-2xl p-5 border border-border text-center">
-                            <p className="text-xl font-black text-foreground leading-none mb-1">
+                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center border border-slate-100 dark:border-slate-800">
+                            <div className="text-2xl font-black text-slate-700 dark:text-slate-200">
                                 {selectedZone.radius ? `${(selectedZone.radius / 1000).toFixed(1)}km` : '--'}
-                            </p>
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Scope Range</p>
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">
+                                {selectedZone.type === 'sausage' ? 'Width' : 'Radius'}
+                            </div>
                         </div>
                     </div>
 
-                    {/* WhatsApp Action */}
-                    {viewMode === 'unlocked' && (
-                        <div className="bg-emerald-600 rounded-3xl p-6 text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden group">
-                            <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
-                                <Truck size={80} />
-                            </div>
-                            <h3 className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-80">Share Live Dashboard</h3>
-                            <p className="text-xs font-bold leading-relaxed mb-6 opacity-90">Generate a permanent read-only link to share real-time tracking with external partners via WhatsApp.</p>
-                            <button
-                                onClick={() => {
-                                    const baseUrl = window.location.origin + window.location.pathname;
-                                    const shareUrl = `${baseUrl}?geofence_id=${selectedZone.id}&view=locked&region=${region}`;
-                                    const message = `Live Geofence Surveillance – ${selectedZone.name}\nVector link:\n\n${shareUrl}`;
-                                    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-                                }}
-                                className="w-full h-11 bg-white text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-emerald-50 transition-all active:scale-95"
-                            >
-                                Share to WhatsApp
-                            </button>
-                        </div>
-                    )}
-
                     {selectedZone.vehicleIds.length > 0 && (
-                        <div className="space-y-3">
-                            <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Active Network Nodes</h3>
-                            <div className="space-y-2">
-                                {[...selectedZone.vehicleIds]
-                                    .sort((a, b) => (selectedZone.occupants?.[b]?.entryTime || 0) - (selectedZone.occupants?.[a]?.entryTime || 0))
-                                    .map(tId => {
-                                        const occ = selectedZone.occupants?.[tId];
-                                        const dwell = occ ? Date.now() - occ.entryTime : 0;
-                                        const isCritical = dwell > 4 * 60 * 60 * 1000;
-                                        const isWarning = dwell > 60 * 60 * 1000;
+                        <div>
+                            <h3 className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">Vehicles Currently Inside</h3>
+                            <div className="space-y-1">
+                                {selectedZone.vehicleIds.map((tId: number) => {
+                                    const occupant = selectedZone.occupants?.[tId];
+                                    const now = Date.now();
+                                    const durationMs = occupant ? now - occupant.entryTime : 0;
 
-                                        return (
-                                            <div key={tId} className="group flex items-center justify-between p-4 bg-surface-raised border border-border rounded-2xl hover:border-primary/40 hover:shadow-sm transition-all">
-                                                <div className="flex items-center gap-4 min-w-0">
-                                                    <div className={cn("w-2 h-2 rounded-full", isCritical ? "bg-red-500 shadow-lg shadow-red-500/40" : isWarning ? "bg-amber-500 shadow-lg shadow-amber-500/40" : "bg-primary shadow-lg shadow-primary/40", "animate-pulse")} />
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="text-[11px] font-black text-foreground uppercase truncate tracking-tight">{trackerLabels[tId] || `ASSET-${tId}`}</span>
-                                                        <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-50">{occ?.status || 'Active'}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2 bg-muted/40 px-3 py-1.5 rounded-lg border border-border/50">
-                                                    <Clock size={10} className="text-muted-foreground" />
-                                                    <span className={cn("text-[10px] font-black tracking-tighter", isCritical ? "text-red-600" : isWarning ? "text-amber-600" : "text-primary")}>
-                                                        {formatDwellTime(dwell)}
+                                    // Helper for formatting
+                                    const formatDwellTime = (ms: number) => {
+                                        if (ms < 60000) return 'Just now';
+                                        const totalMins = Math.floor(ms / 60000);
+                                        const totalHrs = Math.floor(totalMins / 60);
+                                        const totalDays = Math.floor(totalHrs / 24);
+
+                                        if (totalDays >= 365) {
+                                            const y = Math.floor(totalDays / 365);
+                                            const remDays = totalDays % 365;
+                                            const mo = Math.floor(remDays / 30);
+                                            const d = remDays % 30;
+                                            return `${y}y ${mo}mo ${d}d`;
+                                        }
+                                        if (totalDays >= 30) {
+                                            const mo = Math.floor(totalDays / 30);
+                                            const d = totalDays % 30;
+                                            return `${mo}mo ${d}d`;
+                                        }
+                                        if (totalDays >= 1) {
+                                            const h = totalHrs % 24;
+                                            return `${totalDays}d ${h}h`;
+                                        }
+                                        if (totalHrs > 0) {
+                                            return `${totalHrs}h ${totalMins % 60}m`;
+                                        }
+                                        return `${totalMins}m`;
+                                    };
+
+                                    const durationStr = formatDwellTime(durationMs);
+
+                                    // Severity color
+                                    let dotColor = 'bg-blue-500';
+                                    let timerColor = 'text-slate-400 dark:text-slate-500';
+
+                                    if (durationMs > 4 * 60 * 60 * 1000) { // > 4 hours
+                                        dotColor = 'bg-red-500';
+                                        timerColor = 'text-red-500';
+                                    } else if (durationMs > 1 * 60 * 60 * 1000) { // > 1 hour
+                                        dotColor = 'bg-amber-500';
+                                        timerColor = 'text-amber-600';
+                                    }
+
+                                    return (
+                                        <div key={tId} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-800">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${dotColor} ${durationMs < 60000 ? 'animate-pulse' : ''}`}></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                                        {trackerLabels[tId] || `Tracker #${tId}`}
                                                     </span>
+                                                    {occupant?.status && (
+                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                                            {occupant.status}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                            <div className="flex items-center gap-1">
+                                                <Clock size={10} className={timerColor} />
+                                                <span className={`text-[10px] font-bold ${timerColor}`}>
+                                                    {durationStr}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-gray-100 dark:border-slate-800">
+                    {isAdmin && (
+                        <button
+                            onClick={() => handleDelete(selectedZone.id)}
+                            disabled={deleting}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 transition-colors"
+                        >
+                            <Trash2 size={12} /> {deleting ? 'Deleting...' : 'Delete Zone from Navixy'}
+                        </button>
                     )}
                 </div>
             </div>
@@ -403,14 +464,4 @@ export default function GeofencePanel({
     }
 
     return null;
-}
-
-function formatDwellTime(ms: number) {
-    if (ms < 60000) return 'NOW';
-    const min = Math.floor(ms / 60000);
-    const hrs = Math.floor(min / 60);
-    const days = Math.floor(hrs / 24);
-    if (days > 0) return `${days}D ${hrs % 24}H`;
-    if (hrs > 0) return `${hrs}H ${min % 60}M`;
-    return `${min}M`;
 }

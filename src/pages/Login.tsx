@@ -38,7 +38,7 @@ export function Login() {
 
     return (
         <div className="flex min-h-screen w-full items-center justify-center bg-surface-main p-4">
-            <Card className="w-full max-w-[420px] shadow-xl border-border bg-surface-card transition-all duration-300 hover:shadow-2xl">
+            <Card className="w-full max-w-[420px] rounded-[40px] shadow-xl border-border bg-surface-card transition-all duration-300 hover:shadow-2xl">
 
                 <CardHeader className="flex flex-col items-center gap-6 pt-10 pb-4">
                     <img
@@ -66,7 +66,7 @@ export function Login() {
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 disabled={isLoading}
-                                className="h-12 bg-background/50 transition-all duration-200 focus:scale-[1.01] focus:bg-background"
+                                className="h-12 rounded-2xl bg-background/50 transition-all duration-200 focus:scale-[1.01] focus:bg-background"
                                 autoFocus
                             />
                         </div>
@@ -77,7 +77,7 @@ export function Login() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 disabled={isLoading}
-                                className="h-12 bg-background/50 transition-all duration-200 focus:scale-[1.01] focus:bg-background"
+                                className="h-12 rounded-2xl bg-background/50 transition-all duration-200 focus:scale-[1.01] focus:bg-background"
                             />
                         </div>
 
@@ -91,7 +91,7 @@ export function Login() {
                         <Button
                             type="submit"
                             className="
-                                w-full h-12 text-base font-medium 
+                                w-full h-12 text-base font-medium rounded-2xl 
                                 shadow-md transition-all duration-200 
                                 hover:scale-[1.02] hover:shadow-lg hover:bg-primary/90
                                 active:scale-[0.98] active:shadow-sm

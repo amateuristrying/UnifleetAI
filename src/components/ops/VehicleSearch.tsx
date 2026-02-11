@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, Truck, MapPin, ChevronRight, Wifi, WifiOff } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import type { NavixyTrackerState } from '@/services/navixy';
 import { getVehicleStatus } from '@/hooks/useTrackerStatusDuration';
 
@@ -18,6 +19,7 @@ export default function VehicleSearch({
     onRegionChange,
     onSelectVehicle
 }: VehicleSearchProps) {
+    const { checkPermission } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
 
     // Get total count of trackers
@@ -74,26 +76,28 @@ export default function VehicleSearch({
                 </div>
 
                 {/* Region Toggle */}
-                <div className="flex bg-muted p-1 rounded-xl border border-border mb-4 shadow-inner">
-                    <button
-                        onClick={() => onRegionChange('TZ')}
-                        className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${region === 'TZ'
-                            ? 'bg-surface-raised text-primary shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                    >
-                        TZ Ops
-                    </button>
-                    <button
-                        onClick={() => onRegionChange('ZM')}
-                        className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${region === 'ZM'
-                            ? 'bg-surface-raised text-emerald-600 shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                    >
-                        ZM Ops
-                    </button>
-                </div>
+                {checkPermission('admin_only') && (
+                    <div className="flex bg-muted p-1 rounded-xl border border-border mb-4 shadow-inner">
+                        <button
+                            onClick={() => onRegionChange('TZ')}
+                            className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${region === 'TZ'
+                                ? 'bg-surface-raised text-primary shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            TZ Ops
+                        </button>
+                        <button
+                            onClick={() => onRegionChange('ZM')}
+                            className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${region === 'ZM'
+                                ? 'bg-surface-raised text-emerald-600 shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            ZM Ops
+                        </button>
+                    </div>
+                )}
 
                 {/* Search Input */}
                 <div className="relative">

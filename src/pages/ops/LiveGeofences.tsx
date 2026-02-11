@@ -4,6 +4,7 @@ import { useNavixyRealtime } from '@/hooks/useNavixyRealtime';
 import { useFleetAnalysis } from '@/hooks/useFleetAnalysis';
 import { useGeofences } from '@/hooks/useGeofences';
 import { useOps } from '@/context/OpsContext';
+import { useAuth } from '@/context/AuthContext';
 
 import RealtimeMap from '@/components/ops/RealtimeMap';
 import RealtimeInsights from '@/components/ops/RealtimeInsights';
@@ -26,6 +27,7 @@ export default function LiveGeofences() {
     const isGeofenceLocked = isLocked && !!geofenceIdParam;
 
     const { ops, setOps } = useOps();
+    const { checkPermission } = useAuth();
 
     const [trackerIds, setTrackerIds] = useState<number[]>([]);
     const [trackerLabels, setTrackerLabels] = useState<Record<number, string>>({});
@@ -82,7 +84,7 @@ export default function LiveGeofences() {
 
     const { trackerStates, loading } = useNavixyRealtime(trackerIds, sessionKey || '');
     const analysis = useFleetAnalysis(trackerStates);
-    const { zones, selectedZoneId, setSelectedZoneId, createZone, refreshZones } = useGeofences(trackerStates, sessionKey || '', trackerIds);
+    const { zones, selectedZoneId, setSelectedZoneId, createZone, deleteZone, refreshZones } = useGeofences(trackerStates, sessionKey || '');
 
     // URL Sync
     useEffect(() => {
@@ -137,26 +139,28 @@ export default function LiveGeofences() {
                             </div>
 
                             {/* Ops Switch */}
-                            <div className="flex bg-muted p-1 rounded-xl border border-border ml-8">
-                                <button
-                                    onClick={() => handleRegionChange('TZ')}
-                                    className={cn(
-                                        "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                                        region === 'TZ' ? "bg-surface-raised text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    Tanzania
-                                </button>
-                                <button
-                                    onClick={() => handleRegionChange('ZM')}
-                                    className={cn(
-                                        "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                                        region === 'ZM' ? "bg-surface-raised text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    Zambia
-                                </button>
-                            </div>
+                            {checkPermission('admin_only') && (
+                                <div className="flex bg-muted p-1 rounded-xl border border-border ml-8">
+                                    <button
+                                        onClick={() => handleRegionChange('TZ')}
+                                        className={cn(
+                                            "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                            region === 'TZ' ? "bg-surface-raised text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        Tanzania
+                                    </button>
+                                    <button
+                                        onClick={() => handleRegionChange('ZM')}
+                                        className={cn(
+                                            "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                            region === 'ZM' ? "bg-surface-raised text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        Zambia
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-6">
@@ -213,6 +217,7 @@ export default function LiveGeofences() {
                                         trackerLabels={trackerLabels}
                                         onSelectZone={setSelectedZoneId}
                                         onCreateZone={createZone}
+                                        onDeleteZone={deleteZone}
                                         onStartDrawing={setDrawingMode}
                                         onCancelDrawing={() => setDrawingMode('none')}
                                         drawnPayload={drawnPayload}

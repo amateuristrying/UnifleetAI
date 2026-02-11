@@ -9,25 +9,23 @@ export function cn(...inputs: ClassValue[]) {
  * Parses Navixy date strings which might be in "YYYY-MM-DD HH:mm:ss" format
  * or ISO format. Handles timezones assuming input is UTC if no suffix.
  */
-export function parseNavixyDate(dateStr: string | undefined): Date {
-    if (!dateStr) return new Date();
+export function parseNavixyDate(dateString: string | undefined): Date {
+    if (!dateString) return new Date();
 
-    // If it's standard ISO, Date.parse works
-    if (dateStr.includes('T')) {
-        return new Date(dateStr);
+    // If it's already a valid ISO string with timezone, just use it
+    if (dateString.includes('T') && (dateString.includes('Z') || dateString.match(/[+-]\d{2}:?\d{2}$/))) {
+        return new Date(dateString);
     }
 
-    // Handle "YYYY-MM-DD HH:mm:ss" (Common Navixy format)
-    // We assume it's UTC or server time. usually Navixy API returns server time.
-    // For safety, we can treat it as local or UTC. 
-    // Best guess: Replace space with T and append Z for UTC
-    try {
-        const isoLike = dateStr.replace(' ', 'T') + 'Z';
-        return new Date(isoLike);
-    } catch (e) {
-        console.warn('Failed to parse date:', dateStr);
-        return new Date();
+    // Handle "YYYY-MM-DD HH:mm:ss" format
+    if (dateString.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+        // Convert to ISO-ish and append Tanzania offset (+03:00)
+        // This fixes the issue where local time was treated as UTC, causing 3h shift
+        return new Date(dateString.replace(' ', 'T') + '+03:00');
     }
+
+    // Fallback
+    return new Date(dateString);
 }
 
 // Simple time ago formatter

@@ -1,4 +1,4 @@
-import { Download, LayoutGrid, ChevronDown, Maximize, WifiOff } from "lucide-react"
+import { WifiOff } from "lucide-react"
 import { useOps } from "@/context/OpsContext"
 import { useOnlineStatus } from "@/hooks/useVehiclesDB"
 import { cn } from "@/lib/utils"
@@ -111,24 +111,7 @@ export function StatusPanel({ metrics }: StatusPanelProps) {
                 </div>
 
                 {/* Bottom Controls - Absolute Positioned */}
-                <div className="absolute bottom-3 right-5 flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-between h-7 w-[140px] bg-background border border-border rounded-md px-2 text-xs text-muted-foreground shadow-sm cursor-pointer hover:border-primary/50 transition-colors">
-                            <span>All Devices</span>
-                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                        </div>
-                        <button className="text-muted-foreground hover:text-foreground transition-colors p-1 hover:bg-muted/50 rounded">
-                            <Maximize className="h-4 w-4" />
-                        </button>
-                    </div>
 
-                    <div className="h-5 w-px bg-border"></div>
-
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                        <button className="hover:text-foreground transition-colors p-1 hover:bg-muted/50 rounded"><LayoutGrid className="h-4 w-4" /></button>
-                        <button className="hover:text-foreground transition-colors p-1 hover:bg-muted/50 rounded"><Download className="h-4 w-4" /></button>
-                    </div>
-                </div>
             </div>
         </section>
     )

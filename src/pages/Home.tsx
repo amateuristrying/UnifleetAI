@@ -1,6 +1,4 @@
 import { StatusPanel } from "@/components/StatusPanel"
-import { SearchRow } from "@/components/SearchRow"
-import { VehicleList } from "@/components/VehicleList"
 import { MapMain } from "@/components/MapMain"
 import { useEffect, useState, useMemo } from "react"
 import { NavixyService } from "@/services/navixy"
@@ -10,6 +8,7 @@ import { useVehiclesDB, transformDBToVehicles } from "@/hooks/useVehiclesDB"
 import { getVehicleStatus } from "@/hooks/useTrackerStatusDuration"
 import { formatTimeAgo, cn } from "@/lib/utils"
 import type { Vehicle, VehicleStatus } from "@/data/mock"
+import FleetStatusTable from "@/components/ops/FleetStatusTable"
 
 import { VehicleDetail } from "@/components/VehicleDetail"
 import { useLocation } from "react-router-dom"
@@ -17,10 +16,12 @@ import { FleetPulseCard } from "@/components/FleetPulseCard"
 import { FleetStats } from "@/components/FleetStats"
 import { useFleetAnalysis } from "@/hooks/useFleetAnalysis"
 import { useOps } from "@/context/OpsContext"
+import { useAuth } from "@/context/AuthContext"
 import { Activity } from "lucide-react"
 
 export function Home() {
     const location = useLocation();
+    const { checkPermission } = useAuth();
     // 1. Data State
     const { ops, setOps } = useOps();
     const [trackerIds, setTrackerIds] = useState<number[]>([]);
@@ -83,17 +84,14 @@ export function Home() {
     // 8. Fleet Analysis for Fleet Pulse
     const fleetAnalysis = useFleetAnalysis(trackerStates);
 
-    // Filter State
-    const [filterStatus, setFilterStatus] = useState<string>("All");
-    const [searchQuery, setSearchQuery] = useState("");
-
     // 8. Transform to UI Model (with DB fallback for offline)
+    // NOTE: This is now mainly used for the Map, as FleetStatusTable uses raw trackerStates.
     const vehicles: Vehicle[] = useMemo(() => {
         const hasRealtimeData = Object.keys(trackerStates).length > 0;
 
         // Prefer real-time data if available
         if (hasRealtimeData) {
-            const allVehicles = Object.entries(trackerStates).map(([idStr, state]) => {
+            return Object.entries(trackerStates).map(([idStr, state]) => {
                 const id = Number(idStr);
                 const label = trackerLabels[id] || `Vehicle #${id}`;
                 const navixyStatus = getVehicleStatus(state);
@@ -129,45 +127,18 @@ export function Home() {
                     heading: state.gps.heading ?? 0,
                 };
             });
-
-            return applyFilters(allVehicles);
         }
 
         // Fallback to IndexedDB when offline or no real-time data
         if (dbVehicles.length > 0) {
             console.log('[Home] Using IndexedDB fallback for vehicle list');
             const dbTransformed = transformDBToVehicles(dbVehicles);
-            return applyFilters(dbTransformed as Vehicle[]);
+            return dbTransformed as Vehicle[];
         }
 
         return [];
 
-        function applyFilters(allVehicles: Vehicle[]): Vehicle[] {
-            if (filterStatus === "All" && !searchQuery) return allVehicles;
-
-            return allVehicles.filter(v => {
-                // 1. Text Search
-                if (searchQuery) {
-                    const q = searchQuery.toLowerCase().replace(/\s+/g, '');
-                    const targetName = v.name.toLowerCase().replace(/\s+/g, '');
-                    const targetDriver = v.driver.toLowerCase().replace(/\s+/g, '');
-
-                    if (!targetName.includes(q) && !targetDriver.includes(q)) {
-                        return false;
-                    }
-                }
-
-                // 2. Status Filter
-                if (filterStatus === "Running") return v.status === "Running";
-                if (filterStatus === "Stopped") return v.status === "Stopped";
-                if (filterStatus === "Idle") return v.status === "Idle";
-                if (filterStatus === "Not Working") return v.status === "Not Working";
-                if (filterStatus === "Not Online") return v.status === "Not Online";
-                return true;
-            });
-        }
-
-    }, [trackerStates, trackerLabels, filterStatus, searchQuery, dbVehicles]);
+    }, [trackerStates, trackerLabels, dbVehicles]);
 
     // Metrics calculation logic
     const metrics = useMemo(() => {
@@ -225,40 +196,43 @@ export function Home() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest hidden md:block">
-                            Switch Fleet
-                        </div>
-                        <div className="scale-110 origin-right">
-                            <div className={cn(
-                                "flex items-center bg-muted/60 rounded-full p-1 border border-border shadow-sm transition-opacity",
-                                "scale-100",
-                            )}>
-                                <button
-                                    onClick={() => setOps('tanzania')}
-                                    className={cn(
-                                        "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer",
-                                        ops === 'tanzania'
-                                            ? "bg-blue-500 text-white shadow-sm"
-                                            : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    TZ Ops
-                                </button>
-                                <button
-                                    onClick={() => setOps('zambia')}
-                                    className={cn(
-                                        "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer",
-                                        ops === 'zambia'
-                                            ? "bg-blue-500 text-white shadow-sm"
-                                            : "text-muted-foreground hover:text-foreground"
-                                    )}
-                                >
-                                    ZM Ops
-                                </button>
+                    {/* Ops Switch - Admin Only */}
+                    {checkPermission('admin_only') && (
+                        <div className="flex items-center gap-4">
+                            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest hidden md:block">
+                                Switch Fleet
+                            </div>
+                            <div className="scale-110 origin-right">
+                                <div className={cn(
+                                    "flex items-center bg-muted/60 rounded-full p-1 border border-border shadow-sm transition-opacity",
+                                    "scale-100",
+                                )}>
+                                    <button
+                                        onClick={() => setOps('tanzania')}
+                                        className={cn(
+                                            "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer",
+                                            ops === 'tanzania'
+                                                ? "bg-blue-500 text-white shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        TZ Ops
+                                    </button>
+                                    <button
+                                        onClick={() => setOps('zambia')}
+                                        className={cn(
+                                            "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer",
+                                            ops === 'zambia'
+                                                ? "bg-blue-500 text-white shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                    >
+                                        ZM Ops
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </header>
 
                 {/* Fleet Pulse Content - Centered */}
@@ -287,24 +261,13 @@ export function Home() {
             <main className="flex-1 overflow-hidden px-6 pt-8 pb-3 flex gap-4">
                 {/* Left Panel: List */}
                 <div className="flex w-[400px] min-w-[350px] flex-col h-full gap-4">
-                    {/* Search & Filter - Independent Box Row */}
-                    <SearchRow
-                        currentFilter={filterStatus}
-                        onFilterChange={setFilterStatus}
-                        searchQuery={searchQuery}
-                        onSearchChange={setSearchQuery}
+                    <FleetStatusTable
+                        trackerStates={trackerStates}
+                        trackerLabels={trackerLabels}
+                        onVehicleClick={(id) => setSelectedVehicleId(id)}
+                        selectedVehicleId={selectedVehicleId}
+                        sessionKey={sessionKey}
                     />
-
-                    {/* Vehicle List - Independent Box */}
-                    <div className="flex-1 overflow-hidden rounded-[30px] bg-surface-card shadow-xl border border-border/60 flex flex-col transition-all">
-                        <div className="flex-1 overflow-y-auto scrollbar-thin">
-                            <VehicleList
-                                vehicles={vehicles}
-                                selectedVehicleId={selectedVehicleId ? String(selectedVehicleId) : null}
-                                onVehicleClick={(id) => setSelectedVehicleId(Number(id))}
-                            />
-                        </div>
-                    </div>
                 </div>
 
                 {/* Right Panel: Map */}

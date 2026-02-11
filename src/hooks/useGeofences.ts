@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as turf from '@turf/turf';
 import { parseNavixyDate } from '../lib/utils';
@@ -22,10 +24,11 @@ function inferCategory(zone: NavixyZone): GeofenceCategory {
 function normalizeColor(color: string | undefined): string {
     if (!color) return '#3b82f6';
     if (color.startsWith('#')) return color;
+    // Basic hex check (3 or 6 chars) - Navixy often returns 'RRGGBB'
     if (/^[0-9A-Fa-f]{6}$/.test(color) || /^[0-9A-Fa-f]{3}$/.test(color)) {
         return `#${color}`;
     }
-    return color;
+    return color; // Return as-is if it might be a named color or invalid (Mapbox handles valid names)
 }
 
 // ============================================================
@@ -38,10 +41,12 @@ function getTrackerStatus(tracker: NavixyTrackerState): string {
         ? (tracker.movement_status.charAt(0).toUpperCase() + tracker.movement_status.slice(1))
         : 'Unknown';
 
+    // Check for Engine Idle (Stopped + Ignition On)
     if (tracker.movement_status === 'stopped' && tracker.ignition) {
         status = 'Idle';
     }
 
+    // Check for Connection Status
     if (tracker.connection_status === 'offline') {
         status += ' (Offline)';
     }
@@ -54,8 +59,7 @@ function getTrackerStatus(tracker: NavixyTrackerState): string {
 // ============================================================
 export function useGeofences(
     trackers: Record<number, NavixyTrackerState>,
-    sessionKey: string | undefined,
-    _navixyTrackerIds?: number[]
+    sessionKey: string | undefined
 ) {
     const [zones, setZones] = useState<Geofence[]>([]);
     const [loading, setLoading] = useState(true);
@@ -65,29 +69,16 @@ export function useGeofences(
     const zonesLoadedRef = useRef(false);
 
     // ---------------------------------------------------------
-    // 1. Load zones from Navixy on mount
+    // 1. Load zones from Navixy on mount (batched to avoid rate limits)
     // ---------------------------------------------------------
-    const loadZones = useCallback(async (signal?: { isCurrent: boolean }) => {
-        if (!sessionKey) {
-            setZones([]);
-            setSelectedZoneId(null);
-            setLoading(false);
-            zonesLoadedRef.current = false;
-            return;
-        }
-
+    const loadZones = useCallback(async () => {
+        if (!sessionKey) return;
         setLoading(true);
         setError(null);
-
-        // Reset state so we don't show old zones from previous region
-        setZones([]);
-        setSelectedZoneId(null);
-        zonesLoadedRef.current = false;
-
         try {
             const navixyZones = await NavixyService.listZones(sessionKey);
-            if (signal && !signal.isCurrent) return;
 
+            // Enrich each zone — batch getZonePoints calls to avoid rate limits
             const enriched: Geofence[] = [];
             const BATCH_SIZE = 5;
 
@@ -99,7 +90,9 @@ export function useGeofences(
                         let center: { lat: number; lng: number } | undefined;
 
                         if (z.type === 'polygon' || z.type === 'sausage') {
+                            // Points are usually returned in the list response
                             points = z.points;
+
                             if (points && points.length > 0) {
                                 const avgLat = points.reduce((s: number, p: any) => s + p.lat, 0) / points.length;
                                 const avgLng = points.reduce((s: number, p: any) => s + p.lng, 0) / points.length;
@@ -126,100 +119,72 @@ export function useGeofences(
                 );
                 enriched.push(...batchResults);
 
-                if (signal && !signal.isCurrent) return;
-
+                // Delay between batches to yield to UI
                 if (i + BATCH_SIZE < navixyZones.length) {
                     await new Promise(r => setTimeout(r, 50));
                 }
             }
 
-            if (!signal || signal.isCurrent) {
-                setZones(enriched);
-                setLoading(false);
-                zonesLoadedRef.current = true;
-            }
+            setZones(enriched);
+            zonesLoadedRef.current = true;
         } catch (err) {
-            if (!signal || signal.isCurrent) {
-                setError('Failed to load geofence zones');
-                console.error(err);
-                setLoading(false);
-            }
+            setError('Failed to load geofence zones');
+            console.error(err);
+        } finally {
+            setLoading(false);
         }
     }, [sessionKey]);
 
-    useEffect(() => {
-        zonesLoadedRef.current = false;
-        const signal = { isCurrent: true };
-        loadZones(signal);
-        return () => { signal.isCurrent = false; };
-    }, [loadZones]);
+    useEffect(() => { loadZones(); }, [loadZones]);
 
     // ---------------------------------------------------------
     // 2. Real-time zone occupancy via Turf.js (Client-side)
-    //    Uses a ref so WebSocket updates don't reset the timer.
     // ---------------------------------------------------------
-    const trackersRef = useRef(trackers);
-    trackersRef.current = trackers;
-
-    // Pre-compute zone geometries so Turf.js doesn't rebuild them every tick
-    const zoneGeomRef = useRef<Map<number, any>>(new Map());
     useEffect(() => {
-        const geoms = new Map<number, any>();
-        zones.forEach(zone => {
-            if (zone.type === 'circle' && zone.center && zone.radius) {
-                geoms.set(zone.id, { type: 'circle', center: turf.point([zone.center.lng, zone.center.lat]), radius: zone.radius });
-            } else if (zone.type === 'polygon' && zone.points && zone.points.length >= 3) {
-                const coords = zone.points.map(p => [p.lng, p.lat]);
-                coords.push(coords[0]);
-                try { geoms.set(zone.id, { type: 'polygon', poly: turf.polygon([coords]) }); } catch { /* skip bad geom */ }
-            } else if (zone.type === 'sausage' && zone.points && zone.points.length >= 2 && zone.radius) {
-                const coords = zone.points.map(p => [p.lng, p.lat]);
-                try { geoms.set(zone.id, { type: 'sausage', line: turf.lineString(coords), radius: zone.radius }); } catch { /* skip */ }
-            }
-        });
-        zoneGeomRef.current = geoms;
-    }, [zones]);
+        // Debounce calculation to avoid UI jank
+        const timer = setTimeout(() => {
+            if (!zonesLoadedRef.current || zones.length === 0) return;
+            // Early exit if no trackers
+            if (Object.keys(trackers).length === 0) return;
 
-    useEffect(() => {
-        if (!zonesLoadedRef.current || zones.length === 0) return;
-
-        // Fixed interval that reads the latest tracker data from the ref
-        const interval = setInterval(() => {
-            const currentTrackers = trackersRef.current;
-            if (Object.keys(currentTrackers).length === 0) return;
-
-            const trackerEntries = Object.entries(currentTrackers);
+            const trackerEntries = Object.entries(trackers);
             const zoneVehicles: Record<number, Set<number>> = {};
             zones.forEach(z => { zoneVehicles[z.id] = new Set(); });
-            const geoms = zoneGeomRef.current;
 
             trackerEntries.forEach(([idStr, state]) => {
                 const trackerId = Number(idStr);
                 const { lat, lng } = state.gps.location;
                 if (!lat || !lng) return;
 
-                const pt = turf.point([lng, lat]);
-
                 try {
                     zones.forEach(zone => {
-                        const geom = geoms.get(zone.id);
-                        if (!geom) return;
-
                         let isInside = false;
-                        if (geom.type === 'circle') {
-                            isInside = turf.distance(pt, geom.center, { units: 'meters' }) <= geom.radius;
-                        } else if (geom.type === 'polygon') {
+                        if (zone.type === 'circle' && zone.center && zone.radius) {
+                            const distance = turf.distance(
+                                turf.point([lng, lat]),
+                                turf.point([zone.center!.lng, zone.center!.lat]),
+                                { units: 'meters' }
+                            );
+                            if (distance <= zone.radius) isInside = true;
+                        } else if (zone.type === 'polygon' && zone.points && zone.points.length >= 3) {
+                            const coords = zone.points.map(p => [p.lng, p.lat]);
+                            coords.push(coords[0]); // close ring
+                            const poly = turf.polygon([coords]);
                             // @ts-ignore
-                            isInside = turf.booleanPointInPolygon(pt, geom.poly);
-                        } else if (geom.type === 'sausage') {
-                            isInside = turf.pointToLineDistance(pt, geom.line, { units: 'meters' }) <= geom.radius;
+                            if (turf.booleanPointInPolygon(turf.point([lng, lat]), poly)) isInside = true;
+                        } else if (zone.type === 'sausage' && zone.points && zone.points.length >= 2 && zone.radius) {
+                            const coords = zone.points.map(p => [p.lng, p.lat]);
+                            const line = turf.lineString(coords);
+                            const pointOnLine = turf.point([lng, lat]);
+                            const distance = turf.pointToLineDistance(pointOnLine, line, { units: 'meters' });
+                            if (distance <= zone.radius) isInside = true;
                         }
 
                         if (isInside) {
                             zoneVehicles[zone.id].add(trackerId);
                         }
                     });
-                } catch {
+                } catch (e) {
                     // Ignore invalid geometry processing
                 }
             });
@@ -231,24 +196,34 @@ export function useGeofences(
                     const nextOccupants: Record<number, any> = { ...z.occupants };
                     let occupantsChanged = false;
 
-                    // Handle entries and updates
+                    // 1. Handle entries and updates
                     currentIds.forEach(tid => {
                         if (!nextOccupants[tid]) {
+                            // New entry
+                            // SMART BACKFILL: If vehicle is already stopped/parked, usage 'movement_status_update' 
+                            // as the entry time (approximate, but better than "now").
                             let entryTime = Date.now();
                             let status = 'Unknown';
 
-                            const tracker = currentTrackers[tid];
+                            const tracker = trackers[tid];
                             if (tracker) {
                                 const { movement_status, movement_status_update } = tracker;
+                                // Calculate status
                                 status = getTrackerStatus(tracker);
+
+                                // User requested status-based only
                                 const isStopped = movement_status === 'parked' || movement_status === 'stopped';
 
                                 if (isStopped && movement_status_update) {
                                     const updateTime = parseNavixyDate(movement_status_update).getTime();
+                                    // Sanity check: updateTime should be in the past. 
+                                    // INCREASED LIMIT: Allow up to 10 years (was 365 days) to cover long-term offline vehicles.
                                     if (updateTime < entryTime && updateTime > entryTime - (10 * 365 * 24 * 60 * 60 * 1000)) {
                                         entryTime = updateTime;
                                     }
                                 } else if (tracker.connection_status === 'offline' && tracker.last_update) {
+                                    // Fallback for "Moving (Offline)" or other states where vehicle is disconnected.
+                                    // If offline, it has been in this position since at least 'last_update'.
                                     const updateTime = parseNavixyDate(tracker.last_update).getTime();
                                     if (updateTime < entryTime && updateTime > entryTime - (10 * 365 * 24 * 60 * 60 * 1000)) {
                                         entryTime = updateTime;
@@ -264,8 +239,10 @@ export function useGeofences(
                             };
                             occupantsChanged = true;
                         } else {
-                            const tracker = currentTrackers[tid];
+                            // Existing - update lastSeen and status to reflect real-time changes
+                            const tracker = trackers[tid];
                             const status = tracker ? getTrackerStatus(tracker) : (nextOccupants[tid].status || 'Unknown');
+
                             nextOccupants[tid] = {
                                 ...nextOccupants[tid],
                                 lastSeen: Date.now(),
@@ -274,7 +251,7 @@ export function useGeofences(
                         }
                     });
 
-                    // Handle exits
+                    // 2. Handle exits
                     Object.keys(nextOccupants).forEach(tidStr => {
                         const tid = Number(tidStr);
                         if (!currentIds.has(tid)) {
@@ -304,13 +281,13 @@ export function useGeofences(
                 return changed ? next : prev;
             });
 
-        }, 3000); // Fixed 3s interval – not affected by tracker state updates
+        }, 500);
 
-        return () => clearInterval(interval);
-    }, [zones]);
+        return () => clearTimeout(timer);
+    }, [trackers, zones.length]); // Intentionally omitting deep dependency check on zones content, using length + loaded ref
 
     // ---------------------------------------------------------
-    // CRUD operations
+    // 4. CRUD operations
     // ---------------------------------------------------------
     const createZone = useCallback(async (payload: CreateZonePayload): Promise<number | null> => {
         if (!sessionKey) return null;
@@ -318,6 +295,7 @@ export function useGeofences(
         if (!result) return null;
 
         if ((payload.type === 'polygon' || payload.type === 'sausage') && payload.points) {
+            // Wait a bit for zone creation to propagate
             await new Promise(r => setTimeout(r, 500));
             await NavixyService.updateZonePoints(result.id, payload.points, sessionKey);
         }
@@ -349,7 +327,9 @@ export function useGeofences(
         return ok;
     }, [sessionKey, selectedZoneId]);
 
-    // Derived: zoneOccupancy map
+    // ---------------------------------------------------------
+    // 5. Derived: zoneOccupancy map (backward compat)
+    // ---------------------------------------------------------
     const zoneOccupancy: Record<string, number> = {};
     zones.forEach(z => { zoneOccupancy[z.name] = z.vehicleCount; });
 

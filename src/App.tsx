@@ -35,8 +35,11 @@ export default function App() {
 
 function Layout() {
   const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isLocked = searchParams.get('view') === 'locked';
+
   const hideSidebarRoutes = ["/fleet-ai", "/contact"];
-  const showSidebar = !hideSidebarRoutes.includes(location.pathname);
+  const showSidebar = !hideSidebarRoutes.includes(location.pathname) && !isLocked;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-surface-main font-sans text-foreground transition-colors duration-200">
@@ -46,7 +49,7 @@ function Layout() {
       {/* MAIN CONTENT — padded */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header (Links) - Global */}
-        <TopNav />
+        {!isLocked && <TopNav />}
 
         {/* Page Content */}
         <Routes>

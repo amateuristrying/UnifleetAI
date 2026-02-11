@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, TrendingUp, Timer, Activity, Truck, Trophy } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -8,8 +8,29 @@ export function Sidebar() {
     const location = useLocation();
     const navigate = useNavigate();
     const [isExpanded, setIsExpanded] = useState(false);
+    const sidebarRef = useRef<HTMLElement>(null);
 
     const toggleSidebar = () => setIsExpanded(!isExpanded);
+
+    // Auto-minimize on outside click
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node) && isExpanded) {
+                setIsExpanded(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isExpanded]);
+
+    // Format handleNavigation helper
+    const handleNavigation = (path: string) => {
+        navigate(path);
+        if (isExpanded) setIsExpanded(false);
+    };
 
     // Helper to check if a path is active
     const isActive = (path: string) => {
@@ -21,6 +42,7 @@ export function Sidebar() {
 
     return (
         <aside
+            ref={sidebarRef}
             className={cn(
                 "flex flex-col bg-surface-card ml-3 my-3 rounded-[35px] shadow-md z-50 transition-all duration-300 ease-in-out overflow-hidden border border-border",
                 isExpanded ? "w-[240px] items-start px-4" : "w-[60px] items-center px-2"
@@ -46,7 +68,7 @@ export function Sidebar() {
                     label="Runtime Status"
                     isExpanded={isExpanded}
                     isActive={isActive('/')}
-                    onClick={() => navigate('/')}
+                    onClick={() => handleNavigation('/')}
                 />
 
                 <SidebarItem
@@ -54,7 +76,7 @@ export function Sidebar() {
                     label="Live Geofence Monitoring"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-geofences')}
-                    onClick={() => navigate('/live-geofences')}
+                    onClick={() => handleNavigation('/live-geofences')}
                 />
 
                 <SidebarItem
@@ -62,7 +84,7 @@ export function Sidebar() {
                     label="Live Fleet Monitoring"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-fleet')}
-                    onClick={() => navigate('/live-fleet')}
+                    onClick={() => handleNavigation('/live-fleet')}
                 />
 
                 <SidebarItem
@@ -70,7 +92,7 @@ export function Sidebar() {
                     label="Corridor Analytics"
                     isExpanded={isExpanded}
                     isActive={isActive('/corridor-analytics')}
-                    onClick={() => navigate('/corridor-analytics')}
+                    onClick={() => handleNavigation('/corridor-analytics')}
                 />
 
                 <SidebarItem
@@ -78,7 +100,7 @@ export function Sidebar() {
                     label="Turnaround Time"
                     isExpanded={isExpanded}
                     isActive={isActive('/turnaround-time')}
-                    onClick={() => navigate('/turnaround-time')}
+                    onClick={() => handleNavigation('/turnaround-time')}
                 />
 
                 <SidebarItem
@@ -86,7 +108,7 @@ export function Sidebar() {
                     label="Fleet Pulse"
                     isExpanded={isExpanded}
                     isActive={isActive('/fleet-pulse')}
-                    onClick={() => navigate('/fleet-pulse')}
+                    onClick={() => handleNavigation('/fleet-pulse')}
                 />
 
                 <SidebarItem
@@ -94,7 +116,7 @@ export function Sidebar() {
                     label="Vehicles"
                     isExpanded={isExpanded}
                     isActive={isActive('/vehicle') && !isActive('/vehicle/driver-score')} // Exclude driver score as it has its own icon
-                    onClick={() => navigate('/vehicle')}
+                    onClick={() => handleNavigation('/vehicle')}
                 />
 
                 <SidebarItem
@@ -102,7 +124,7 @@ export function Sidebar() {
                     label="Driver Scoreboard"
                     isExpanded={isExpanded}
                     isActive={isActive('/vehicle/driver-score')}
-                    onClick={() => navigate('/vehicle/driver-score')}
+                    onClick={() => handleNavigation('/vehicle/driver-score')}
                 />
 
             </nav>
