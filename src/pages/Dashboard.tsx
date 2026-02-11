@@ -13,7 +13,7 @@ import { SpeedViolationsDashboard } from "@/components/dashboards/SpeedViolation
 import { GeofenceDashboard } from "@/components/dashboards/GeofenceDashboard";
 
 import { useOps } from "@/context/OpsContext";
-import unifleetLogo from "@/assets/unifleet_logo.png";
+import unifleetLogo from "@/assets/logo1.png";
 
 type TF = "1 day" | "7 days" | "30 days";
 

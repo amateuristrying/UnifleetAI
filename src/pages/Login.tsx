@@ -2,61 +2,23 @@ import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
+import unifleetLogo from "@/assets/unifleet_logo.png";
+import unifleetLogoDark from "@/assets/unifleet_logo_dark.png";
+import { useTheme } from "@/context/ThemeProvider";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
-// Animated Logo Component
-function UnifleetLogo({ className }: { className?: string }) {
-    return (
-        <svg
-            viewBox="0 0 160 40"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={cn("group cursor-default", className)} // Added group for hover effects
-            aria-label="Unifleet Logo"
-        >
-            <g transform="translate(0, 0)">
-                {/* The Icon: Adds a smooth 'lift' animation on hover */}
-                <g className="transition-transform duration-500 ease-out group-hover:-translate-y-1.5">
-                    <path
-                        d="M10 24 A 14 14 0 0 1 38 24"
-                        stroke="currentColor"
-                        strokeWidth="4.5"
-                        strokeLinecap="round"
-                    />
-                    <path
-                        d="M24 18 L 24 32"
-                        stroke="currentColor"
-                        strokeWidth="4.5"
-                        strokeLinecap="round"
-                    />
-                </g>
 
-                {/* The Text: Subtle opacity change on hover */}
-                <text
-                    x="50"
-                    y="32"
-                    fill="currentColor"
-                    fontSize="26"
-                    fontWeight="600"
-                    fontFamily="Lexend, sans-serif"
-                    style={{ letterSpacing: '-0.03em' }}
-                    className="transition-opacity duration-300 group-hover:opacity-80"
-                >
-                    unifleet
-                </text>
-            </g>
-        </svg>
-    );
-}
+
 
 export function Login() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const { login, isLoading } = useAuth();
+    const { resolved } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -79,7 +41,11 @@ export function Login() {
             <Card className="w-full max-w-[420px] shadow-xl border-border bg-surface-card transition-all duration-300 hover:shadow-2xl">
 
                 <CardHeader className="flex flex-col items-center gap-6 pt-10 pb-4">
-                    <UnifleetLogo className="h-10 w-auto text-foreground" />
+                    <img
+                        src={resolved === 'dark' ? unifleetLogoDark : unifleetLogo}
+                        alt="UNIFLEET"
+                        className="h-[170px] w-auto object-contain mt-[-40px] mb-[-60px]"
+                    />
 
                     <div className="text-center space-y-1.5 animate-in fade-in slide-in-from-bottom-2 duration-700">
                         <h1 className="text-2xl font-bold tracking-tight text-foreground">
