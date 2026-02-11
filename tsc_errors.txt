@@ -1,0 +1,2 @@
+src/components/geofence/GeofenceMapOverlay.tsx(2,1): error TS6133: 'mapboxgl' is declared but its value is never read.
+src/pages/Vehicle.tsx(115,15): error TS6133: '_realtimeState' is declared but its value is never read.

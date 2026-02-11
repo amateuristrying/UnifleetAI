@@ -1,0 +1,207 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --radius: 0.5rem;
+
+    /* ── Semantic surface tokens ── */
+    --surface-main: #F1EEEE;
+    --surface-card: #FDFDFD;
+    --surface-raised: #FFFFFF;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 20% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 20% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* ── Semantic surface tokens (dark) ── */
+    --surface-main: #111827;
+    --surface-card: #1F2937;
+    --surface-raised: #374151;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Dark scrollbar */
+  .dark ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: #1F2937;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #4B5563;
+    border-radius: 3px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #6B7280;
+  }
+}
+
+/* ─────────────────────────────────────────
+   PDF Export Styles
+   ───────────────────────────────────────── */
+
+.pdf-exporting .pdf-section {
+  margin: 0 !important;
+  padding: 8px !important;
+}
+
+.pdf-exporting .mb-6,
+.pdf-exporting .mb-8 {
+  margin-bottom: 4px !important;
+}
+
+.pdf-exporting h2,
+.pdf-exporting h3,
+.pdf-exporting h4,
+.pdf-exporting .text-lg,
+.pdf-exporting .font-bold {
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
+.pdf-exporting [class*="bg-gray-100"],
+.pdf-exporting [class*="bg-gray-50"] {
+  background-color: #f3f4f6 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.pdf-exporting .recharts-wrapper {
+  overflow: visible !important;
+}
+
+.pdf-exporting .recharts-surface {
+  overflow: visible !important;
+}
+
+.pdf-exporting [class*="shadow"] {
+  box-shadow: none !important;
+}
+
+.pdf-exporting table {
+  border-collapse: collapse;
+}
+
+.pdf-exporting th,
+.pdf-exporting td {
+  border: 1px solid #e5e7eb !important;
+  padding: 8px !important;
+}
+
+/* ─────────────────────────────────────────
+   Print Styles (for browser print)
+   ───────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  button,
+  .no-print,
+  [data-html2canvas-ignore="true"] {
+    display: none !important;
+  }
+
+  .pdf-section {
+    break-before: page;
+    page-break-before: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .pdf-section:first-child {
+    break-before: auto;
+    page-break-before: auto;
+  }
+
+  [class*="shadow"] {
+    box-shadow: none !important;
+  }
+}
