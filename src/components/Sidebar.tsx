@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
-import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, TrendingUp, Timer, Activity, Truck, Trophy } from "lucide-react";
+import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, TrendingUp, Timer, Activity, Truck, Trophy, Gauge } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +80,15 @@ export function Sidebar() {
                 />
 
                 <SidebarItem
+                    icon={<Gauge className="h-5 w-5" />}
+                    label="Live Speed Violations Monitoring"
+                    isExpanded={isExpanded}
+                    isActive={isActive('/live-speed')}
+                    onClick={() => handleNavigation('/live-speed')}
+                    marquee
+                />
+
+                <SidebarItem
                     icon={<LocateFixed className="h-5 w-5" />}
                     label="Live Fleet Monitoring"
                     isExpanded={isExpanded}
@@ -139,9 +148,10 @@ interface SidebarItemProps {
     isExpanded: boolean;
     isActive?: boolean;
     onClick: () => void;
+    marquee?: boolean;
 }
 
-function SidebarItem({ icon, label, isExpanded, isActive, onClick }: SidebarItemProps) {
+function SidebarItem({ icon, label, isExpanded, isActive, onClick, marquee }: SidebarItemProps) {
     return (
         <Button
             variant="ghost"
@@ -159,12 +169,17 @@ function SidebarItem({ icon, label, isExpanded, isActive, onClick }: SidebarItem
             </div>
 
             {/* Label */}
-            <span className={cn(
-                "ml-3 whitespace-nowrap transition-opacity duration-300",
-                isExpanded ? "opacity-100 block" : "opacity-0 hidden w-0"
+            <div className={cn(
+                "ml-3 overflow-hidden",
+                isExpanded ? "opacity-100 block w-full" : "opacity-0 hidden w-0"
             )}>
-                {label}
-            </span>
+                <span className={cn(
+                    "whitespace-nowrap block",
+                    marquee && isExpanded && "group-hover:animate-marquee"
+                )}>
+                    {label}
+                </span>
+            </div>
 
             {/* Active Indicator Bar */}
             {isActive && (
