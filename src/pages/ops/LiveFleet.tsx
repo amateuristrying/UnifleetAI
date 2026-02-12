@@ -74,7 +74,7 @@ export default function LiveFleet() {
 
     const { trackerStates, loading } = useNavixyRealtime(trackerIds, sessionKey || '');
     const analysis = useFleetAnalysis(trackerStates);
-    const { zones, refreshZones } = useGeofences(trackerStates, sessionKey || '', trackerIds);
+    const { zones, refreshZones } = useGeofences(trackerStates, sessionKey || '');
 
     // URL Sync
     useEffect(() => {

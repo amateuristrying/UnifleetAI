@@ -116,7 +116,7 @@ export function Geofence() {
         zones, loading: zonesLoading,
         selectedZoneId, setSelectedZoneId,
         createZone, deleteZone, refreshZones,
-    } = useGeofences(trackerStates, sessionKey, trackerIds);
+    } = useGeofences(trackerStates, sessionKey);
 
     // Drawing state
     const [drawingMode, setDrawingMode] = useState<'none' | 'polygon' | 'corridor' | 'circle'>('none');

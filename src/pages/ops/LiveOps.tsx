@@ -89,7 +89,7 @@ export default function LiveOps() {
 
     const { trackerStates, loading } = useNavixyRealtime(trackerIds, sessionKey || '');
     const analysis = useFleetAnalysis(trackerStates);
-    const { zones, selectedZoneId, setSelectedZoneId, createZone, refreshZones } = useGeofences(trackerStates, sessionKey || '', trackerIds);
+    const { zones, selectedZoneId, setSelectedZoneId, createZone, refreshZones } = useGeofences(trackerStates, sessionKey || '');
 
     // URL Sync
     useEffect(() => {
