@@ -205,13 +205,21 @@
     box-shadow: none !important;
   }
 }
+
+/* Marquee Animation */
 @keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+
+  /* Move -50% because we duplicated the text */
 }
 
-.animate-marquee {
-  display: inline-block;
-  animation: marquee 5s linear infinite;
+/* Pause on hover using the specific group class from MarqueeText */
+.group\/marquee:hover>div {
+  animation-play-state: paused !important;
 }
-

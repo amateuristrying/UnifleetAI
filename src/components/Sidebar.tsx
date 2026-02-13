@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, TrendingUp, Timer, Activity, Truck, Trophy, Gauge } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { MarqueeText } from "./ui/MarqueeText";
 
 export function Sidebar() {
     const location = useLocation();
@@ -77,6 +78,7 @@ export function Sidebar() {
                     isExpanded={isExpanded}
                     isActive={isActive('/live-geofences')}
                     onClick={() => handleNavigation('/live-geofences')}
+                    marquee
                 />
 
                 <SidebarItem
@@ -158,7 +160,7 @@ function SidebarItem({ icon, label, isExpanded, isActive, onClick, marquee }: Si
             onClick={onClick}
             className={cn(
                 "h-11 rounded-xl transition-all duration-200 group relative overflow-hidden",
-                isExpanded ? "w-full justify-start px-3" : "w-11 justify-center px-0",
+                isExpanded ? "w-full justify-start px-3 text-left" : "w-11 justify-center px-0",
                 isActive
                     ? "bg-primary/10 text-primary hover:bg-primary/15 font-medium"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -173,12 +175,13 @@ function SidebarItem({ icon, label, isExpanded, isActive, onClick, marquee }: Si
                 "ml-3 overflow-hidden",
                 isExpanded ? "opacity-100 block w-full" : "opacity-0 hidden w-0"
             )}>
-                <span className={cn(
-                    "whitespace-nowrap block",
-                    marquee && isExpanded && "group-hover:animate-marquee"
-                )}>
-                    {label}
-                </span>
+                {marquee && isExpanded ? (
+                    <MarqueeText text={label} delay={1000} speed={5} />
+                ) : (
+                    <span className="whitespace-nowrap block truncate">
+                        {label}
+                    </span>
+                )}
             </div>
 
             {/* Active Indicator Bar */}

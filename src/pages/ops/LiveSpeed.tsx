@@ -70,7 +70,7 @@ export default function LiveSpeed() {
 
     // 3. Detect Violations Logic
     const ongoingViolations = useRef<Record<number, { startTime: number, maxSpeed: number, count: number, sumSpeed: number }>>({});
-    const SPEED_LIMIT = 60;
+    const SPEED_LIMIT = 70;
 
     // Compute Active Violations for Display (Derived from real-time state)
     const activeViolations: SpeedViolation[] = useMemo(() => {
@@ -169,7 +169,7 @@ export default function LiveSpeed() {
 
     // Critical Count
     const criticalCount = useMemo(() => {
-        return allViolations.filter(v => v.maxSpeed >= 70).length;
+        return allViolations.filter(v => v.maxSpeed >= 80).length;
     }, [allViolations]);
 
     // Filter Logic
@@ -184,7 +184,7 @@ export default function LiveSpeed() {
         }
 
         if (showCriticalOnly) {
-            result = result.filter(v => v.maxSpeed >= 70);
+            result = result.filter(v => v.maxSpeed >= 80);
         }
 
         return result;
@@ -231,7 +231,7 @@ export default function LiveSpeed() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-surface-main p-8 gap-6">
+        <div className="flex flex-col h-full bg-surface-main p-8 gap-6 overflow-hidden">
             {/* Header */}
             <div className="bg-surface-card border border-border rounded-3xl px-8 py-6 flex items-center justify-between shadow-sm shrink-0">
                 <div className="flex flex-col gap-4">
@@ -278,7 +278,7 @@ export default function LiveSpeed() {
                             )}>
                                 {criticalCount}
                                 <span className="text-xs font-bold text-muted-foreground ml-1.5 opacity-60 font-mono">
-                                    VEHICLES &gt; 70 KM/H
+                                    VEHICLES &gt; 80 KM/H
                                 </span>
                             </span>
                         </div>
@@ -384,97 +384,106 @@ export default function LiveSpeed() {
 
             {/* Content */}
             <div className="flex-1 overflow-hidden flex flex-col">
-                <div className="flex-1 rounded-3xl bg-surface-card border border-border overflow-hidden flex flex-col shadow-sm">
+                <div className="flex-1 rounded-[30px] bg-surface-card border border-border overflow-hidden flex flex-col shadow-sm">
                     {/* Table Header Strip */}
-                    <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
+                    <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-2">
                             <ShieldCheck size={16} className="text-primary" />
                             <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Recent Violations Feed</span>
                         </div>
                         <div className="text-[10px] font-mono text-muted-foreground">
-                            Updates automatically • 60 KM/H Limit
+                            Updates automatically • 70 KM/H Limit
                         </div>
                     </div>
 
-                    {/* Raw Table Implementation */}
-                    <div className="flex-1 overflow-auto custom-scrollbar">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-muted/10 sticky top-0 z-10 backdrop-blur-sm">
-                                <tr>
-                                    {isCustomExport && <th className="p-4 w-[50px]"></th>}
-                                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">Vehicle</th>
-                                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">Start Time</th>
-                                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">Duration</th>
-                                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">Max Speed</th>
-                                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">Avg Speed</th>
-                                    <th className="p-4 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredViolations.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={isCustomExport ? 7 : 6} className="p-8 text-center text-muted-foreground text-xs uppercase tracking-widest opacity-50">
-                                            No recent violations detected
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredViolations.map((v) => {
-                                        const isActive = v.status === 'active';
+                    {/* Column Headers (Grid) */}
+                    <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-muted/10 border-b border-border text-[10px] font-black uppercase tracking-widest text-muted-foreground shrink-0">
+                        <div className="col-span-3">Vehicle</div>
+                        <div className="col-span-2">Start Time</div>
+                        <div className="col-span-2">Duration</div>
+                        <div className="col-span-2">Max Speed</div>
+                        <div className="col-span-2">Avg Speed</div>
+                        <div className="col-span-1 text-right">Status</div>
+                    </div>
 
-                                        // Highlight High Speed
-                                        const speedClass = isActive && v.maxSpeed > 100
-                                            ? "text-red-700 font-extrabold"
-                                            : "text-red-500 font-bold";
+                    {/* List Implementation (Cards) */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+                        {filteredViolations.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-50 gap-2">
+                                <ShieldCheck size={32} />
+                                <span className="text-xs uppercase tracking-widest">No recent violations detected</span>
+                            </div>
+                        ) : (
+                            filteredViolations.map((v) => {
+                                const isActive = v.status === 'active';
 
-                                        return (
-                                            <tr key={v.id} className={cn("group transition-colors border-b border-border/50 last:border-0 text-sm", isActive ? "bg-red-50/40 hover:bg-red-50" : "hover:bg-muted/30")}>
-                                                {isCustomExport && (
-                                                    <td className="p-4">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="h-4 w-4 rounded border-input text-primary focus:ring-primary bg-background"
-                                                            checked={selectedViolationIds.has(v.id)}
-                                                            onChange={() => toggleSelection(v.id)}
-                                                        />
-                                                    </td>
-                                                )}
-                                                <td className="p-4 font-medium text-foreground">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={cn("w-2 h-2 rounded-full", isActive ? "bg-red-600 animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.6)]" : "bg-muted-foreground/30")} />
-                                                        <span className="text-xs font-bold">{v.vehicleName}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-muted-foreground text-xs font-mono font-medium">
-                                                    {new Date(v.startTime).toLocaleTimeString()}
-                                                </td>
-                                                <td className="p-4 text-xs font-mono font-medium">{v.duration}</td>
-                                                <td className="p-4 font-black">
-                                                    <span className={speedClass}>
-                                                        {Math.round(v.maxSpeed)}
-                                                    </span>
-                                                    <span className="text-[9px] text-muted-foreground font-normal ml-1">KM/H</span>
-                                                </td>
-                                                <td className="p-4 font-bold text-orange-600">
-                                                    {Math.round(v.avgSpeed)} <span className="text-[9px] text-muted-foreground font-normal">KM/H</span>
-                                                </td>
-                                                <td className="p-4 text-right">
-                                                    {isActive ? (
-                                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-600 text-white text-[9px] font-black uppercase tracking-widest shadow-md animate-pulse">
-                                                            <Zap size={10} className="fill-white" />
-                                                            LIVE
-                                                        </div>
-                                                    ) : (
-                                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-[9px] font-black uppercase tracking-widest border border-border">
-                                                            Recorded
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                                // Highlight High Speed
+                                const speedClass = isActive && v.maxSpeed > 100
+                                    ? "text-red-700 font-extrabold"
+                                    : "text-red-500 font-bold";
+
+                                return (
+                                    <div
+                                        key={v.id}
+                                        className={cn(
+                                            "grid grid-cols-12 gap-4 items-center p-3 rounded-xl border transition-all text-sm group",
+                                            isActive
+                                                ? "bg-red-50/40 border-red-100/50 hover:bg-red-50 hover:border-red-200 shadow-sm"
+                                                : "bg-surface-raised border-border/40 hover:border-border hover:shadow-md hover:bg-surface-raised/80"
+                                        )}
+                                    >
+                                        {/* Vehicle */}
+                                        <div className="col-span-3 font-medium text-foreground flex items-center gap-3">
+                                            {isCustomExport && (
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 rounded border-input text-primary focus:ring-primary bg-background shrink-0"
+                                                    checked={selectedViolationIds.has(v.id)}
+                                                    onChange={() => toggleSelection(v.id)}
+                                                />
+                                            )}
+                                            <div className={cn("w-2 h-2 rounded-full shrink-0", isActive ? "bg-red-600 animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.6)]" : "bg-muted-foreground/30")} />
+                                            <span className="text-xs font-bold truncate">{v.vehicleName}</span>
+                                        </div>
+
+                                        {/* Start Time */}
+                                        <div className="col-span-2 text-muted-foreground text-xs font-mono font-medium">
+                                            {new Date(v.startTime).toLocaleTimeString()}
+                                        </div>
+
+                                        {/* Duration */}
+                                        <div className="col-span-2 text-xs font-mono font-medium">{v.duration}</div>
+
+                                        {/* Max Speed */}
+                                        <div className="col-span-2 font-black">
+                                            <span className={speedClass}>
+                                                {Math.round(v.maxSpeed)}
+                                            </span>
+                                            <span className="text-[9px] text-muted-foreground font-normal ml-1">KM/H</span>
+                                        </div>
+
+                                        {/* Avg Speed */}
+                                        <div className="col-span-2 font-bold text-orange-600">
+                                            {Math.round(v.avgSpeed)} <span className="text-[9px] text-muted-foreground font-normal">KM/H</span>
+                                        </div>
+
+                                        {/* Status */}
+                                        <div className="col-span-1 text-right">
+                                            {isActive ? (
+                                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-600 text-white text-[9px] font-black uppercase tracking-widest shadow-md animate-pulse">
+                                                    <Zap size={10} className="fill-white" />
+                                                    LIVE
+                                                </div>
+                                            ) : (
+                                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-[9px] font-black uppercase tracking-widest border border-border">
+                                                    Recorded
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
             </div>

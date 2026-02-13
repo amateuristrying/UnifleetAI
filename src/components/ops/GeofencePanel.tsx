@@ -127,7 +127,7 @@ export default function GeofencePanel({
     // LIST VIEW
     if (view === 'list') {
         return (
-            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-[30px] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
                     <div>
                         <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Geofence Zones</h2>
@@ -198,7 +198,7 @@ export default function GeofencePanel({
     // CREATE VIEW
     if (view === 'create') {
         return (
-            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-[30px] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
                     <button
                         onClick={() => { setView('list'); onCancelDrawing(); }}
@@ -317,7 +317,7 @@ export default function GeofencePanel({
     // DETAIL VIEW
     if (view === 'detail' && selectedZone) {
         return (
-            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-[30px] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
                     <button
                         onClick={() => { setView('list'); onSelectZone(null); }}

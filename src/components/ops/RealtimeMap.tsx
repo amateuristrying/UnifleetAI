@@ -311,7 +311,7 @@ export default function RealtimeMap({
     }, [focusedTrackerId, trackers, mapInstance]);
 
     return (
-        <div className="relative w-full h-full rounded-[32px] overflow-hidden border border-border shadow-2xl bg-muted">
+        <div className="relative w-full h-full rounded-[30px] overflow-hidden border border-border shadow-2xl bg-muted">
             <style>{`
                 .premium-map-popup .mapboxgl-popup-content {
                     padding: 0 !important;

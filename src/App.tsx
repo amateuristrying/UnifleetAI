@@ -17,6 +17,8 @@ import { DriverScoreLogic } from "./pages/DriverScoreLogic"
 import LiveGeofences from "./pages/ops/LiveGeofences"
 import LiveFleet from "./pages/ops/LiveFleet"
 import LiveSpeed from "./pages/ops/LiveSpeed"
+import CorridorAnalytics from "./pages/ops/CorridorAnalytics"
+import { TurnaroundTime } from "./pages/TurnaroundTime"
 
 export default function App() {
   return (
@@ -59,8 +61,8 @@ function Layout() {
           <Route path="/live-geofences" element={<LiveGeofences />} />
           <Route path="/live-speed" element={<LiveSpeed />} />
           <Route path="/live-fleet" element={<LiveFleet />} />
-          <Route path="/corridor-analytics" element={<Home />} />
-          <Route path="/turnaround-time" element={<Home />} />
+          <Route path="/corridor-analytics" element={<CorridorAnalytics />} />
+          <Route path="/turnaround-time" element={<TurnaroundTime />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/vehicle/*" element={<Vehicle />} />
           <Route path="/vehicle/driver-score" element={<DriverScore />} />

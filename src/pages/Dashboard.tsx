@@ -13,7 +13,9 @@ import { SpeedViolationsDashboard } from "@/components/dashboards/SpeedViolation
 import { GeofenceDashboard } from "@/components/dashboards/GeofenceDashboard";
 
 import { useOps } from "@/context/OpsContext";
-import unifleetLogo from "@/assets/logo1.png";
+import { useTheme } from "@/context/ThemeProvider";
+import logoLight from "@/assets/unifleet_logo.png";
+import logoDark from "@/assets/unifleet_logo_dark.png";
 
 type TF = "1 day" | "7 days" | "30 days";
 
@@ -36,6 +38,7 @@ const SECTION_TITLES = [
 export function Dashboard() {
     const sectionsRootRef = useRef<HTMLDivElement>(null);
     const { ops, setOps } = useOps();
+    const { resolved } = useTheme();
     const location = useLocation();
     const { checkPermission } = useAuth();
     const isAdmin = checkPermission('admin_only');
@@ -98,9 +101,17 @@ export function Dashboard() {
                 return;
             }
 
-            // A4 landscape width in mm (we'll use this as fixed width, height will vary)
-            const pageW = 297; // A4 landscape width
-            const margin = 8;
+            // Determine theme colors
+            const isDark = resolved === 'dark';
+            const bgColor = isDark ? [31, 41, 55] : [255, 255, 255]; // Gray-800 or White
+            const textColor = isDark ? [249, 250, 251] : [31, 41, 55]; // Gray-50 or Gray-800
+            const secondaryColor = isDark ? [156, 163, 175] : [107, 114, 128]; // Gray-400 or Gray-500
+            const lineColor = isDark ? [75, 85, 99] : [229, 231, 235]; // Gray-600 or Gray-200
+            const logoToUse = isDark ? logoDark : logoLight;
+
+            // A4 landscape width in mm
+            const pageW = 297;
+            const margin = 15;
             const titleHeight = 14;
             const contentWidth = pageW - margin * 2;
 
@@ -110,10 +121,7 @@ export function Dashboard() {
             // ─── Cover Page (dynamic height) ───
             const coverW = 297; // A4 landscape width
 
-            // We'll calculate content first, then set the page height
-            const centerX = coverW / 2;
-
-            // ── Contents entries (pre-compute for centering) ──
+            // ── Contents entries ──
             const coverItems = [
                 ["Summary Metrics", "Snapshot of key KPIs (trips, distance, hours, fuel, violations)."],
                 ["Daily Assets Active", "Active vehicles per day vs. total fleet to see utilization trends."],
@@ -124,12 +132,10 @@ export function Dashboard() {
                 ["Geofence", "Entries/exits and dwell insights for zones (route & site compliance)."],
             ];
 
-            // ── Pre-calculate total content height so we can set dynamic page height ──
-            // Logo ~55mm wide, aspect ratio dependent height, ~10mm margin
-            // Title ~10mm, subtitle ~5mm, gap ~8.5mm, divider, heading, entries
-            const itemSpacing = 7;
-            const estimatedContentH = 30 /*top*/ + 55 /*logo area*/ + 10 /*gap*/ + 10 /*title*/ + 9 /*subtitle*/ + 8.5 /*divider gap*/ + 10 /*content heading*/ + 8 /*gap*/ + (coverItems.length * itemSpacing) + 15 /*bottom padding*/;
-            const coverH = Math.max(estimatedContentH, 140); // minimum 140mm
+            // ── Pre-calculate height ──
+            const itemSpacing = 8;
+            const estimatedContentH = 30 + 40 /*logo*/ + 15 /*title*/ + 10 /*subtitle*/ + 10 /*divider*/ + 15 /*heading*/ + (coverItems.length * itemSpacing) + 20;
+            const coverH = Math.max(estimatedContentH, 210);
 
             pdf = new jsPDF({
                 orientation: "landscape",
@@ -137,41 +143,43 @@ export function Dashboard() {
                 format: [coverW, coverH],
             });
 
-            // White background
-            pdf.setFillColor(255, 255, 255);
+            // Background
+            pdf.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
             pdf.rect(0, 0, coverW, coverH, "F");
 
-            // ── Logo (centered, 55mm wide) ──
-            let logoBottomY = 40; // fallback if logo fails
+            // ── Logo (Top Left) ──
+            const logoMarginX = 5; // <--- Customize Logo X Margin Here
+            const logoMarginY = 7; // <--- Customize Logo Y Margin Here
+
             try {
                 const logoImg = new Image();
-                logoImg.src = unifleetLogo;
+                logoImg.src = logoToUse;
                 await new Promise<void>((res, rej) => {
                     logoImg.onload = () => res();
                     logoImg.onerror = () => rej();
                     if (logoImg.complete) res();
                 });
 
-                const logoW = 55;
+                const logoW = 45;
                 const ratio = logoImg.naturalHeight / logoImg.naturalWidth;
                 const logoH = logoW * ratio;
-                const logoX = centerX - logoW / 2;
-                const logoY = 30;
-                pdf.addImage(unifleetLogo, "PNG", logoX, logoY, logoW, logoH);
-                logoBottomY = logoY + logoH + 10;
+
+                pdf.addImage(logoToUse, "PNG", logoMarginX, logoMarginY, logoW, logoH);
             } catch {
                 // skip logo silently
             }
 
             // ── Title ──
-            let cursorY = logoBottomY;
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(30);
-            pdf.setTextColor(31, 41, 55);
-            pdf.text("Operations Overview Report", centerX, cursorY, { align: "center" });
+            // Left align title relative to page
+            let cursorY = 75; // Moved down by 20mm
+
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(28);
+            pdf.setTextColor(textColor[0], textColor[1], textColor[2]);
+            pdf.text("Operations Overview Report", margin, cursorY);
 
             // ── Subtitle (dynamic timeframe) ──
-            cursorY += 9;
+            cursorY += 10;
             const subtitleMap: Record<string, string> = {
                 "1 day": "Last 1 Day",
                 "7 days": "Last 7 Days",
@@ -179,46 +187,33 @@ export function Dashboard() {
             };
             const subtitleText = `(${subtitleMap[summaryFilter] || "Last 30 Days"})`;
             pdf.setFont("helvetica", "normal");
-            pdf.setFontSize(15);
-            pdf.setTextColor(107, 114, 128);
-            pdf.text(subtitleText, centerX, cursorY, { align: "center" });
+            pdf.setFontSize(14);
+            pdf.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+            pdf.text(subtitleText, margin, cursorY);
 
             // ── Divider line ──
-            cursorY += 8.5;
-            pdf.setDrawColor(229, 231, 235);
+            cursorY += 12;
+            pdf.setDrawColor(lineColor[0], lineColor[1], lineColor[2]);
             pdf.setLineWidth(0.3);
-            const lineInset = 30;
-            pdf.line(lineInset, cursorY, coverW - lineInset, cursorY);
+            pdf.line(margin, cursorY, coverW - margin, cursorY);
 
-            // ── "CONTENT" heading ──
-            cursorY += 10;
-            pdf.setFont("helvetica", "bold");
+            // ── "CONTENTS" heading ──
+            cursorY += 15;
+            pdf.setFont("helvetica", "normal");
             pdf.setFontSize(14);
-            pdf.setTextColor(31, 41, 55);
-            pdf.text("CONTENTS", centerX, cursorY, { align: "center" });
+            pdf.setTextColor(textColor[0], textColor[1], textColor[2]);
+            pdf.text("Contents-", margin, cursorY); // Left aligned
 
-            cursorY += 8;
+            cursorY += 10;
 
-            // ── Render content entries (centered) ──
-            pdf.setFontSize(10);
+            // ── Render content entries (Left aligned, normal text) ──
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(11);
+            pdf.setTextColor(textColor[0], textColor[1], textColor[2]);
+
             for (const [label, desc] of coverItems) {
-                // Measure full line width to center it
-                pdf.setFont("helvetica", "bold");
-                const boldPart = `${label} - `;
-                const boldW = pdf.getTextWidth(boldPart);
-                pdf.setFont("helvetica", "normal");
-                const normalW = pdf.getTextWidth(desc);
-                const totalW = boldW + normalW;
-                const startX = centerX - totalW / 2;
-
-                pdf.setFont("helvetica", "bold");
-                pdf.setTextColor(31, 41, 55);
-                pdf.text(boldPart, startX, cursorY);
-
-                pdf.setFont("helvetica", "normal");
-                pdf.setTextColor(107, 114, 128);
-                pdf.text(desc, startX + boldW, cursorY);
-
+                const text = `${label} - ${desc}`;
+                pdf.text(text, margin, cursorY);
                 cursorY += itemSpacing;
             }
 
@@ -230,7 +225,7 @@ export function Dashboard() {
 
                 const canvas = await html2canvas(contentEl, {
                     scale: 2,
-                    backgroundColor: "#ffffff",
+                    backgroundColor: isDark ? "#1f2937" : "#ffffff",
                     useCORS: true,
                     scrollY: -window.scrollY,
                     logging: false,
@@ -243,12 +238,13 @@ export function Dashboard() {
                         const headerBoxes = clonedDoc.querySelectorAll("[data-pdf-hide], .pdf-hide");
                         headerBoxes.forEach((el) => el.remove());
 
+                        // Fix invisible text color if any
                         const allText = clonedDoc.querySelectorAll("h2, h3, h4, h5, p, span, td, th, div");
                         allText.forEach((el) => {
                             const htmlEl = el as HTMLElement;
                             const style = window.getComputedStyle(el);
                             if (style.color === "rgba(0, 0, 0, 0)" || style.opacity === "0") {
-                                htmlEl.style.color = "#1f2937";
+                                htmlEl.style.color = isDark ? "#f3f4f6" : "#1f2937";
                                 htmlEl.style.opacity = "1";
                             }
                         });
@@ -260,35 +256,38 @@ export function Dashboard() {
                     },
                 });
 
-                // Calculate output dimensions - fit to content width
+                // Calculate output dimensions
                 const scale = contentWidth / canvas.width;
                 const outW = contentWidth;
                 const outH = canvas.height * scale;
 
-                // Calculate page height based on content (add margins and title)
-                const pageH = outH + margin * 2 + titleHeight + 4; // +4 for a bit of bottom padding
+                // Calculate page height
+                const pageH = outH + margin * 2 + titleHeight + 4;
 
+                // Add Page
                 if (i === 0) {
-                    // First data page — add to existing PDF (cover was page 1)
                     pdf!.addPage([pageW, pageH], "landscape");
                 } else {
-                    // Add a new page with custom dimensions for this section
                     pdf!.addPage([pageW, pageH], "landscape");
                 }
 
-                // Add section title
+                // Fill Background
+                pdf!.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+                pdf!.rect(0, 0, pageW, pageH, "F");
+
+                // Section Title
                 const title = SECTION_TITLES[i] || `Section ${i + 1}`;
                 pdf!.setFont("helvetica", "bold");
                 pdf!.setFontSize(12);
-                pdf!.setTextColor(31, 41, 55);
+                pdf!.setTextColor(textColor[0], textColor[1], textColor[2]);
                 pdf!.text(title.toUpperCase(), margin, margin + 7);
 
-                // Add a subtle line under title
-                pdf!.setDrawColor(200, 200, 200);
+                // Line under title
+                pdf!.setDrawColor(lineColor[0], lineColor[1], lineColor[2]);
                 pdf!.setLineWidth(0.3);
                 pdf!.line(margin, margin + 10, pageW - margin, margin + 10);
 
-                // Add the content image
+                // Content Image
                 const img = canvas.toDataURL("image/png");
                 pdf!.addImage(img, "PNG", margin, margin + titleHeight, outW, outH, undefined, "FAST");
             }
