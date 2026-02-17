@@ -20,8 +20,10 @@ import {
     Coffee,
     Info,
     Truck,
+    List,
     type LucideIcon,
 } from "lucide-react";
+import { NavixyService } from "../services/navixy";
 import Papa from "papaparse";
 import { useOps } from "../context/OpsContext";
 import { api } from "../context/config";
@@ -61,6 +63,16 @@ const REPORT_TYPES: ReportDef[] = [
         hasTimeframe: false,
         hasApi: true,
         description: "A snapshot of all configured geofences with entry/exit events and dwell times. Use this report to monitor whether vehicles are staying within designated operational zones and complying with route boundaries.",
+    },
+    {
+        id: "geofence-list",
+        title: "Geofence List",
+        icon: List,
+        color: "bg-teal-500/10 dark:bg-teal-500/20",
+        iconColor: "text-teal-600 dark:text-teal-400",
+        hasTimeframe: false,
+        hasApi: true,
+        description: "A comprehensive list of all geofences including serial number, name, and shape details. Download directly as CSV.",
     },
     {
         id: "night-drivers",
@@ -583,6 +595,56 @@ export function Reports() {
         downloadBlob(csv, `AboveAvg_${ops}_${periodKey}_${new Date().toISOString().slice(0, 10)}.csv`);
     };
 
+    /* ── Geofence List Download (Direct) ── */
+
+    const dlGeofenceList = async () => {
+        const SESSION_KEYS = {
+            zambia: import.meta.env.VITE_NAVIXY_SESSION_KEY_ZM,
+            tanzania: import.meta.env.VITE_NAVIXY_SESSION_KEY_TZ,
+        };
+        const sessionKey = SESSION_KEYS[ops as keyof typeof SESSION_KEYS];
+
+        if (!sessionKey) return alert("Session key configuration missing for " + ops);
+
+        try {
+            const zones = await NavixyService.listZones(sessionKey);
+            if (!zones || !zones.length) return alert("No geofences found.");
+
+            const rows = zones.map((z: any, index: number) => {
+                let shape = "Unknown";
+                if (z.type === 'circle' && z.center) {
+                    shape = `CIRCLE (Lat: ${z.center.lat}, Lng: ${z.center.lng}, Radius: ${z.radius}m)`;
+                } else if (z.points && Array.isArray(z.points)) {
+                    // Format as standard WKT-like or simple list
+                    const pts = z.points.map((p: any) => `(${p.lat}, ${p.lng})`).join(", ");
+                    shape = `${z.type.toUpperCase()} [${pts}]`;
+                }
+
+                return {
+                    "Sr No": index + 1,
+                    "Geofence Name": z.label,
+                    "Shape": shape
+                };
+            });
+
+            const csv = Papa.unparse(rows);
+            downloadBlob(csv, "Geofence_list.csv");
+        } catch (err) {
+            console.error("Failed to fetch geofence list:", err);
+            alert("Failed to download geofence list.");
+        }
+    };
+
+    const handleDownloadGeofenceList = async () => {
+        if (downloading) return;
+        setDownloading(true);
+        try {
+            await dlGeofenceList();
+        } finally {
+            setDownloading(false);
+        }
+    };
+
     /* ──────────── Can Download? ──────────── */
 
     const canDownload = useMemo(() => {
@@ -665,7 +727,13 @@ export function Reports() {
                                 return (
                                     <button
                                         key={report.id}
-                                        onClick={() => openReport(report)}
+                                        onClick={() => {
+                                            if (report.id === 'geofence-list') {
+                                                handleDownloadGeofenceList();
+                                            } else {
+                                                openReport(report);
+                                            }
+                                        }}
                                         className="relative bg-surface-card rounded-xl border border-border p-5 flex flex-col items-start hover:shadow-lg hover:border-primary/20 transition-all duration-200 group text-left"
                                     >
                                         {/* Top Row: Icon + Title + Status */}
@@ -687,15 +755,25 @@ export function Reports() {
                                             </div>
                                         )}
 
-                                        {/* Description + Chevron Row */}
+                                        {/* Description + Chevron/Download Row */}
                                         <div className="w-full pl-1 flex items-center justify-between mt-1">
                                             <p className="text-xs text-muted-foreground truncate flex-1">
-                                                {report.hasApi ? "Click to download" : "Coming soon"}
+                                                {report.id === 'geofence-list' ? "Click to download directly" : (report.hasApi ? "Click to download" : "Coming soon")}
                                             </p>
-                                            <ChevronRight
-                                                size={18}
-                                                className="text-muted-foreground/50 group-hover:text-primary transition-colors flex-shrink-0 ml-2"
-                                            />
+                                            {report.id === 'geofence-list' ? (
+                                                <Download
+                                                    size={18}
+                                                    className={cn(
+                                                        "text-muted-foreground/50 group-hover:text-primary transition-colors flex-shrink-0 ml-2",
+                                                        downloading && "animate-pulse"
+                                                    )}
+                                                />
+                                            ) : (
+                                                <ChevronRight
+                                                    size={18}
+                                                    className="text-muted-foreground/50 group-hover:text-primary transition-colors flex-shrink-0 ml-2"
+                                                />
+                                            )}
                                         </div>
                                     </button>
                                 );
