@@ -42,7 +42,7 @@ export default function LiveOps() {
     const [focusedAction, setFocusedAction] = useState<any | null>(null);
     const [selectedTrackerId, setSelectedTrackerId] = useState<number | null>(trackerIdParam ? Number(trackerIdParam) : null);
 
-    const [drawingMode, setDrawingMode] = useState<'none' | 'polygon' | 'corridor' | 'circle'>('none');
+    const [drawingMode, setDrawingMode] = useState<'none' | 'polygon' | 'circle'>('none');
     const [drawnPayload, setDrawnPayload] = useState<CreateZonePayload | null>(null);
     const [monitoredZoneIds, setMonitoredZoneIds] = useState<number[]>([]);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -254,7 +254,7 @@ export default function LiveOps() {
                                             zones={zones}
                                             trackerLabels={trackerLabels}
                                             monitoredZoneIds={monitoredZoneIds}
-                                            onToggleMonitorZone={(id) => setMonitoredZoneIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
+                                            onMonitorZones={(ids: number[]) => setMonitoredZoneIds(ids)}
                                             onSelectZone={setSelectedZoneId}
                                         />
                                     )}

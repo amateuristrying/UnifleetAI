@@ -119,11 +119,11 @@ export function Geofence() {
     } = useGeofences(trackerStates, sessionKey);
 
     // Drawing state
-    const [drawingMode, setDrawingMode] = useState<'none' | 'polygon' | 'corridor' | 'circle'>('none');
+    const [drawingMode, setDrawingMode] = useState<'none' | 'polygon' | 'circle'>('none');
     const [drawnPayload, setDrawnPayload] = useState<CreateZonePayload | null>(null);
     const [monitoredZoneIds, setMonitoredZoneIds] = useState<number[]>([]);
 
-    const handleStartDrawing = (mode: 'polygon' | 'corridor' | 'circle') => {
+    const handleStartDrawing = (mode: 'polygon' | 'circle') => {
         setDrawingMode(mode);
         setDrawnPayload(null);
     };

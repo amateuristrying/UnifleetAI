@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     MapPin, Plus, Trash2, Clock, ArrowLeft,
     Anchor, Files, Warehouse, Truck, Target,
-    Hexagon, Route, Circle,
+    Hexagon, Circle,
     Eye, Check, X,
 } from 'lucide-react';
 import type { Geofence, CreateZonePayload, GeofenceCategory } from '../../types/geofence';
@@ -16,7 +16,7 @@ interface GeofencePanelProps {
     onSelectZone: (zoneId: number | null) => void;
     onCreateZone: (payload: CreateZonePayload) => Promise<number | null>;
     onDeleteZone: (zoneId: number) => Promise<boolean>;
-    onStartDrawing: (mode: 'polygon' | 'corridor' | 'circle') => void;
+    onStartDrawing: (mode: 'polygon' | 'circle') => void;
     onCancelDrawing: () => void;
     drawnPayload?: CreateZonePayload | null;
     monitoredZoneIds?: number[];
@@ -54,7 +54,7 @@ export default function GeofencePanel({
     const [createForm, setCreateForm] = useState({
         name: '',
         category: 'custom' as GeofenceCategory,
-        type: 'polygon' as 'polygon' | 'corridor' | 'circle',
+        type: 'polygon' as 'polygon' | 'circle',
         radius: 1000,
     });
     const [saving, setSaving] = useState(false);
@@ -321,7 +321,6 @@ export default function GeofencePanel({
                         <div className="grid grid-cols-3 gap-2">
                             {[
                                 { value: 'polygon' as const, label: 'Polygon', icon: <Hexagon size={14} /> },
-                                { value: 'corridor' as const, label: 'Corridor', icon: <Route size={14} /> },
                                 { value: 'circle' as const, label: 'Circle', icon: <Circle size={14} /> },
                             ].map(opt => (
                                 <button
@@ -339,10 +338,10 @@ export default function GeofencePanel({
                         </div>
                     </div>
 
-                    {(createForm.type === 'circle' || createForm.type === 'corridor') && (
+                    {createForm.type === 'circle' && (
                         <div>
                             <label className="block text-xs font-bold text-muted-foreground mb-1.5">
-                                {createForm.type === 'circle' ? 'Radius' : 'Corridor Width'} (meters)
+                                Radius (meters)
                             </label>
                             <input
                                 type="number"
