@@ -294,9 +294,9 @@ export function useGeofences(
         const result = await NavixyService.createZone(payload, sessionKey);
         if (!result) return null;
 
-        if ((payload.type === 'polygon' || payload.type === 'sausage') && payload.points) {
+        if ((payload.type === 'polygon' || payload.type === 'sausage' || payload.type === 'corridor') && payload.points) {
             // Wait a bit for zone creation to propagate
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 1000));
             await NavixyService.updateZonePoints(result.id, payload.points, sessionKey);
         }
 

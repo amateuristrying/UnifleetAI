@@ -13,11 +13,17 @@ type GeofenceRow = {
     dwellDays: number | null;
 };
 
-export const GeofenceDashboard: React.FC = () => {
+interface GeofenceDashboardProps {
+    onLoadingChange?: (loading: boolean) => void;
+}
+
+export const GeofenceDashboard: React.FC<GeofenceDashboardProps> = ({ onLoadingChange }) => {
     const { ops } = useOps();
     const [rows, setRows] = useState<GeofenceRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState<string | null>(null);
+
+    useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     const load = async () => {
         setLoading(true);

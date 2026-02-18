@@ -7,6 +7,7 @@ import { api } from '@/context/config';
 interface SummaryMetricsDashboardProps {
     dateFilter: string;
     setDateFilter: (filter: string) => void;
+    onLoadingChange?: (loading: boolean) => void;
 }
 
 interface KPIReports {
@@ -63,11 +64,14 @@ function buildSummaryUrl(base: string, table: 's1' | 's2', period: 'latest' | '7
 export function SummaryMetricsDashboard({
     dateFilter,
     setDateFilter,
+    onLoadingChange,
 }: SummaryMetricsDashboardProps) {
     const { ops } = useOps();
     const [kpiReports, setKpiReports] = useState<KPIReports | null>(null);
     const [fleetKpis, setFleetKpis] = useState<FleetKpis | null>(null);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
         const controller = new AbortController();

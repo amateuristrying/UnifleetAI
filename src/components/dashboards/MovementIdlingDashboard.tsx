@@ -18,6 +18,7 @@ import { api } from "@/context/config";
 interface MovementIdlingDashboardProps {
     dateFilter: string;
     setDateFilter: (filter: string) => void;
+    onLoadingChange?: (loading: boolean) => void;
 }
 
 interface DataPoint {
@@ -29,10 +30,13 @@ interface DataPoint {
 export const MovementIdlingDashboard: React.FC<MovementIdlingDashboardProps> = ({
     dateFilter,
     setDateFilter,
+    onLoadingChange,
 }) => {
     const { ops } = useOps();
     const [data, setData] = useState<DataPoint[]>([]);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
         const run = async () => {

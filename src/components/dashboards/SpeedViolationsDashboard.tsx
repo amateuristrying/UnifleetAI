@@ -10,6 +10,7 @@ import { api } from '@/context/config';
 interface SpeedViolationsDashboardProps {
     dateFilter: string;
     setDateFilter: (filter: string) => void;
+    onLoadingChange?: (loading: boolean) => void;
 }
 
 interface ByDay {
@@ -71,11 +72,14 @@ function coerceViolators(arr: unknown[]): Violator[] {
 export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> = ({
     dateFilter,
     setDateFilter,
+    onLoadingChange,
 }) => {
     const { ops } = useOps();
     const [byDay, setByDay] = useState<ByDay[]>([]);
     const [violators, setViolators] = useState<Violator[]>([]);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
         const load = async () => {

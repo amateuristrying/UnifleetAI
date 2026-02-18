@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
+import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 import type { NavixyTrackerState } from '@/services/navixy';
 import type { FleetAnalysis, ActionItem } from '@/types/fleet-analysis';
 import { getVehicleStatus } from '@/hooks/useTrackerStatusDuration';
@@ -20,10 +22,13 @@ interface RealtimeMapProps {
     zones?: Geofence[];
     selectedZoneId?: number | null;
     onSelectZone?: (zoneId: number | null) => void;
-    drawingMode?: 'none' | 'polygon' | 'corridor' | 'circle';
+    drawingMode?: 'none' | 'polygon' | 'circle';
     onDrawComplete?: (payload: CreateZonePayload) => void;
     onDrawCancel?: () => void;
     viewMode?: 'locked' | 'unlocked';
+    drawingRadius?: number;
+    onRadiusChange?: (radius: number) => void;
+    drawnPayload?: CreateZonePayload | null;
 }
 
 const getDirection = (heading: number): string => {
@@ -97,41 +102,26 @@ const formatTimeAgoLocal = (dateString: string): string => {
 export default function RealtimeMap({
     trackers, trackerLabels = {}, analysis, showDelays = false, focusedAction, focusedTrackerId,
     zones = [], selectedZoneId = null, onSelectZone = () => { }, drawingMode = 'none', onDrawComplete = () => { }, onDrawCancel = () => { },
-    viewMode = 'unlocked'
+    viewMode = 'unlocked', drawingRadius, onRadiusChange, drawnPayload
 }: RealtimeMapProps) {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
     const [mapInstance, setMapInstance] = useState<mapboxgl.Map | null>(null);
     const markersRef = useRef<Record<number, mapboxgl.Marker>>({});
     const animationFrameRef = useRef<number | null>(null);
+    const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/satellite-streets-v12');
 
-    useEffect(() => {
-        if (!mapContainer.current || !MAPBOX_TOKEN) return;
-        if (map.current) return;
-
-        mapboxgl.accessToken = MAPBOX_TOKEN;
-
-        map.current = new mapboxgl.Map({
-            container: mapContainer.current,
-            style: 'mapbox://styles/mapbox/satellite-streets-v12',
-            center: [30.0, -10.0],
-            zoom: 4,
-            attributionControl: false,
-            antialias: true
-        });
-
-        map.current.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
-
-        map.current.on('load', () => {
-            setMapInstance(map.current);
-            if (!map.current) return;
-
-            map.current.addSource('delays', {
+    // Function to add delay layers - reused for style changes
+    const addDelayLayers = (map: mapboxgl.Map) => {
+        if (!map.getSource('delays')) {
+            map.addSource('delays', {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] }
             });
+        }
 
-            map.current.addLayer({
+        if (!map.getLayer('delays-glow')) {
+            map.addLayer({
                 id: 'delays-glow',
                 type: 'circle',
                 source: 'delays',
@@ -143,8 +133,10 @@ export default function RealtimeMap({
                 },
                 layout: { 'visibility': 'none' }
             });
+        }
 
-            map.current.addLayer({
+        if (!map.getLayer('delays-point')) {
+            map.addLayer({
                 id: 'delays-point',
                 type: 'circle',
                 source: 'delays',
@@ -158,8 +150,10 @@ export default function RealtimeMap({
                 },
                 layout: { 'visibility': 'none' }
             });
+        }
 
-            map.current.addLayer({
+        if (!map.getLayer('delays-count')) {
+            map.addLayer({
                 id: 'delays-count',
                 type: 'symbol',
                 source: 'delays',
@@ -171,13 +165,74 @@ export default function RealtimeMap({
                 },
                 paint: { 'text-color': '#ffffff' }
             });
+        }
+    };
+
+    useEffect(() => {
+        if (!mapContainer.current || !MAPBOX_TOKEN) return;
+        if (map.current) return;
+
+        mapboxgl.accessToken = MAPBOX_TOKEN;
+
+        map.current = new mapboxgl.Map({
+            container: mapContainer.current,
+            style: mapStyle,
+            center: [30.0, -10.0],
+            zoom: 4,
+            attributionControl: false,
+            antialias: true
+        });
+
+        map.current.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+
+        // Add Geocoder
+        const geocoder = new MapboxGeocoder({
+            accessToken: MAPBOX_TOKEN,
+            mapboxgl: mapboxgl as any,
+            marker: false, // Do not add a default marker
+            placeholder: 'Search for places...',
+            collapsed: true, // Collapse by default to save space
+        });
+        map.current.addControl(geocoder, 'top-right');
+
+        map.current.on('load', () => {
+            setMapInstance(map.current);
+            if (!map.current) return;
+            addDelayLayers(map.current);
+        });
+
+        // Restore layers on style change
+        map.current.on('styledata', () => {
+            if (map.current && map.current.isStyleLoaded()) {
+                addDelayLayers(map.current);
+            }
         });
 
         return () => {
             map.current?.remove();
             map.current = null;
         };
-    }, []);
+    }, []); // Run once on mount
+
+    // Handle style updates dynamically
+    useEffect(() => {
+        if (!mapInstance) return;
+        // Defer style change to avoid Mapbox `continuePlacement` race condition
+        const timer = setTimeout(() => {
+            try {
+                if (mapInstance && mapInstance.isStyleLoaded()) {
+                    mapInstance.setStyle(mapStyle);
+                } else if (mapInstance) {
+                    mapInstance.once('idle', () => {
+                        mapInstance.setStyle(mapStyle);
+                    });
+                }
+            } catch (e) {
+                console.warn('Style change deferred:', e);
+            }
+        }, 50);
+        return () => clearTimeout(timer);
+    }, [mapStyle, mapInstance]);
 
     useEffect(() => {
         if (!map.current || !focusedAction) return;
@@ -311,7 +366,7 @@ export default function RealtimeMap({
     }, [focusedTrackerId, trackers, mapInstance]);
 
     return (
-        <div className="relative w-full h-full rounded-[30px] overflow-hidden border border-border shadow-2xl bg-muted">
+        <div className="relative w-full h-full rounded-[30px] overflow-hidden border border-border shadow-2xl bg-muted group">
             <style>{`
                 .premium-map-popup .mapboxgl-popup-content {
                     padding: 0 !important;
@@ -335,7 +390,46 @@ export default function RealtimeMap({
                     border: 1px solid rgba(0,0,0,0.05) !important;
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
                 }
+                .mapboxgl-ctrl-top-right {
+                    top: 10px;
+                    right: 10px;
+                }
             `}</style>
+
+            {/* Map Style Toggle */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 p-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-full shadow-lg border border-white/20 dark:border-slate-700/50 transition-all duration-300 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0">
+                <button
+                    onClick={() => setMapStyle('mapbox://styles/mapbox/light-v11')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${mapStyle.includes('light')
+                        ? 'bg-amber-400 text-amber-900 shadow-sm scale-110'
+                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                    title="Day Mode"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></svg>
+                </button>
+                <button
+                    onClick={() => setMapStyle('mapbox://styles/mapbox/dark-v11')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${mapStyle.includes('dark')
+                        ? 'bg-slate-800 text-slate-100 shadow-sm scale-110 border border-slate-600'
+                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                    title="Night Mode"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+                </button>
+                <button
+                    onClick={() => setMapStyle('mapbox://styles/mapbox/satellite-streets-v12')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${mapStyle.includes('satellite')
+                        ? 'bg-emerald-500 text-white shadow-sm scale-110'
+                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                    title="Satellite Mode"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>
+                </button>
+            </div>
+
             <div ref={mapContainer} className="w-full h-full" />
 
             <GeofenceMapOverlay
@@ -347,6 +441,9 @@ export default function RealtimeMap({
                 onDrawComplete={onDrawComplete}
                 onDrawCancel={onDrawCancel}
                 viewMode={viewMode}
+                drawingRadius={drawingRadius}
+                onRadiusChange={onRadiusChange}
+                drawnPayload={drawnPayload}
             />
         </div>
     );

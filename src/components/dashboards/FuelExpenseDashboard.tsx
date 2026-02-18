@@ -10,6 +10,7 @@ import { api } from '@/context/config';
 interface FuelExpenseDashboardProps {
     dateFilter: string;
     setDateFilter: (filter: string) => void;
+    onLoadingChange?: (loading: boolean) => void;
 }
 
 interface FuelExpensePoint {
@@ -21,10 +22,13 @@ interface FuelExpensePoint {
 export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
     dateFilter,
     setDateFilter,
+    onLoadingChange,
 }) => {
     const { ops } = useOps();
     const [data, setData] = useState<FuelExpensePoint[]>([]);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
         const fetchFuelExpense = async () => {

@@ -10,6 +10,7 @@ import { api } from '@/context/config';
 interface DailyAssetsActiveDashboardProps {
     dateFilter: string;
     setDateFilter: (filter: string) => void;
+    onLoadingChange?: (loading: boolean) => void;
 }
 
 interface AssetPoint {
@@ -40,11 +41,14 @@ function smoothSeries(points: AssetPoint[], windowSize = 3): AssetPoint[] {
 
 export function DailyAssetsActiveDashboard({
     dateFilter,
-    setDateFilter
+    setDateFilter,
+    onLoadingChange,
 }: DailyAssetsActiveDashboardProps) {
     const { ops } = useOps();
     const [rawAssets, setRawAssets] = useState<AssetPoint[]>([]);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
         const controller = new AbortController();

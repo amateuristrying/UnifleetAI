@@ -17,6 +17,7 @@ interface DailyTotal { date: string; total_night_hours: number; }
 interface NightDriversDashboardProps {
     dateFilter?: TF;
     setDateFilter?: (filter: string) => void;
+    onLoadingChange?: (loading: boolean) => void;
 }
 
 const tfToPeriod = (tf: TF): Period =>
@@ -28,6 +29,7 @@ const periodToTf = (p: Period): TF =>
 export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
     dateFilter,
     setDateFilter,
+    onLoadingChange,
 }) => {
     const { ops } = useOps();
     const [filter, setFilter] = useState<Period>("30d");
@@ -41,6 +43,8 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
     const [ranks, setRanks] = useState<Rank[]>([]);
     const [totals, setTotals] = useState<DailyTotal[]>([]);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     const periodKeys = useMemo(() => {
         switch (filter) {

@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
     MapPin, Plus, Trash2, Clock, ArrowLeft,
     Anchor, Files, Warehouse, Truck, Target,
-    Hexagon, Route, Circle, Share2,
+    Hexagon, Circle, Share2,
 } from 'lucide-react';
 import type { Geofence, CreateZonePayload, GeofenceCategory } from '@/types/geofence';
 
@@ -19,7 +19,7 @@ interface GeofencePanelProps {
     onSelectZone: (zoneId: number | null) => void;
     onCreateZone: (payload: CreateZonePayload) => Promise<number | null>;
     onDeleteZone?: (zoneId: number) => Promise<boolean>; // Made optional to match existing prop usage if any
-    onStartDrawing: (mode: 'polygon' | 'corridor' | 'circle') => void;
+    onStartDrawing: (mode: 'polygon' | 'circle') => void;
     onCancelDrawing: () => void;
     drawnPayload?: CreateZonePayload | null;
     monitoredZoneIds?: number[];
@@ -27,6 +27,10 @@ interface GeofencePanelProps {
     region?: 'TZ' | 'ZM';
     onRefresh?: () => void;
     viewMode?: 'locked' | 'unlocked';
+    externalViewMode?: 'list' | 'create' | 'detail';
+    onViewModeChange?: (mode: 'list' | 'create' | 'detail') => void;
+    drawingRadius?: number;
+    onRadiusChange?: (radius: number) => void;
 }
 
 
@@ -52,38 +56,49 @@ const categoryLabels: Record<GeofenceCategory, string> = {
 export default function GeofencePanel({
     zones, selectedZoneId, trackerLabels,
     onSelectZone, onCreateZone, onDeleteZone, onStartDrawing, onCancelDrawing,
-    drawnPayload, region
+    drawnPayload, region, externalViewMode, onViewModeChange, drawingRadius, onRadiusChange
 }: GeofencePanelProps) {
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
     const [view, setView] = useState<PanelView>('list');
+
+    // Sync external view mode
+    useEffect(() => {
+        if (externalViewMode) setView(externalViewMode);
+    }, [externalViewMode]);
+
+    // Update parent on view change
+    const updateView = (v: PanelView) => {
+        setView(v);
+        onViewModeChange?.(v);
+    };
+
     const [createForm, setCreateForm] = useState({
         name: '',
         category: 'custom' as GeofenceCategory,
-        type: 'polygon' as 'polygon' | 'corridor' | 'circle',
-        radius: 500,
+        type: 'polygon' as 'polygon' | 'circle',
     });
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
     // Force re-render every minute for duration updates
     const [, setTick] = useState(0);
-    React.useEffect(() => {
+    useEffect(() => {
         const timer = setInterval(() => setTick(t => t + 1), 60000);
         return () => clearInterval(timer);
     }, []);
 
     const selectedZone = zones.find(z => z.id === selectedZoneId);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (selectedZoneId && view === 'list') {
-            setView('detail');
+            updateView('detail');
         }
-    }, [selectedZoneId]);
+    }, [selectedZoneId, view]); // Added view to dependency array
 
     const handleZoneClick = (zoneId: number) => {
         onSelectZone(zoneId);
-        setView('detail');
+        updateView('detail');
     };
 
     const handleDelete = async (zoneId: number) => {
@@ -91,7 +106,7 @@ export default function GeofencePanel({
             setDeleting(true);
             await onDeleteZone(zoneId);
             setDeleting(false);
-            setView('list');
+            updateView('list');
         }
     };
 
@@ -100,25 +115,40 @@ export default function GeofencePanel({
     };
 
     const handleSaveZone = async () => {
-        if (!createForm.name.trim()) return;
-        setSaving(true);
+        console.log('[GeofencePanel] handleSaveZone called');
+        console.log('[GeofencePanel] name:', createForm.name, 'drawnPayload:', drawnPayload);
 
-        let payload: CreateZonePayload;
-        if (drawnPayload) {
-            payload = { ...drawnPayload, label: createForm.name.trim(), category: createForm.category, color: '#3b82f6' };
-        } else if (createForm.type === 'circle') {
-            setSaving(false);
+        if (!createForm.name.trim()) {
+            console.warn('[GeofencePanel] No name — button should be disabled');
             return;
-        } else {
-            setSaving(false);
+        }
+        if (!drawnPayload) {
+            console.warn('[GeofencePanel] No drawn payload — button should be disabled');
             return;
         }
 
-        await onCreateZone(payload);
-        setSaving(false);
-        setCreateForm({ name: '', category: 'custom', type: 'polygon', radius: 500 });
-        onCancelDrawing();
-        setView('list');
+        setSaving(true);
+
+        const payload: CreateZonePayload = {
+            ...drawnPayload,
+            label: createForm.name.trim(),
+            category: createForm.category,
+            color: '#3b82f6',
+        };
+
+        console.log('[GeofencePanel] Sending payload to Navixy:', JSON.stringify(payload, null, 2));
+
+        try {
+            const result = await onCreateZone(payload);
+            console.log('[GeofencePanel] Create zone result:', result);
+            setCreateForm({ name: '', category: 'custom', type: 'polygon' });
+            onCancelDrawing();
+            updateView('list');
+        } catch (err) {
+            console.error('[GeofencePanel] Failed to save zone:', err);
+        } finally {
+            setSaving(false);
+        }
     };
 
     // Sort zones by vehicle count descending
@@ -133,15 +163,6 @@ export default function GeofencePanel({
                         <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Geofence Zones</h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400">{zones.length} zones configured</p>
                     </div>
-                    <div className="flex gap-2">
-
-                        <button
-                            onClick={() => setView('create')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                            <Plus size={12} /> Add Zone
-                        </button>
-                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -150,8 +171,9 @@ export default function GeofencePanel({
                             <MapPin className="mx-auto text-slate-300 mb-3" size={32} />
                             <p className="text-sm font-medium text-slate-500">No geofence zones</p>
                             <p className="text-xs text-slate-400 mt-1">Create your first zone to start monitoring</p>
+                            <p className="text-xs text-slate-400 mt-1">Create your first zone to start monitoring</p>
                             <button
-                                onClick={() => setView('create')}
+                                onClick={() => updateView('create')}
                                 className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
                             >
                                 <Plus size={12} className="inline mr-1" /> Create Zone
@@ -197,11 +219,15 @@ export default function GeofencePanel({
 
     // CREATE VIEW
     if (view === 'create') {
+        const isCircle = createForm.type === 'circle';
+        const hasPayload = !!drawnPayload;
+        const circleRadius = (drawnPayload?.type === 'circle' ? drawnPayload.radius : drawingRadius) || 0;
+
         return (
             <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-[30px] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
                     <button
-                        onClick={() => { setView('list'); onCancelDrawing(); }}
+                        onClick={() => { updateView('list'); onCancelDrawing(); }}
                         className="p-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
                     >
                         <ArrowLeft size={16} />
@@ -225,39 +251,25 @@ export default function GeofencePanel({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Category</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            {(Object.keys(categoryLabels) as GeofenceCategory[]).map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setCreateForm(prev => ({ ...prev, category: cat }))}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${createForm.category === cat
-                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                        : 'border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-300 dark:hover:border-blue-500'
-                                        }`}
-                                >
-                                    {categoryIcons[cat]}
-                                    {categoryLabels[cat]}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div>
                         <label className="block text-xs font-bold text-slate-600 mb-1.5">Zone Shape</label>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                             {[
                                 { value: 'polygon' as const, label: 'Polygon', icon: <Hexagon size={14} /> },
-                                { value: 'corridor' as const, label: 'Corridor', icon: <Route size={14} /> },
                                 { value: 'circle' as const, label: 'Circle', icon: <Circle size={14} /> },
                             ].map(opt => (
                                 <button
                                     key={opt.value}
-                                    onClick={() => setCreateForm(prev => ({ ...prev, type: opt.value }))}
+                                    onClick={() => {
+                                        setCreateForm(prev => ({ ...prev, type: opt.value }));
+                                        if (opt.value !== createForm.type) {
+                                            onCancelDrawing();
+                                        }
+                                    }}
+                                    disabled={hasPayload}
                                     className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all ${createForm.type === opt.value
-                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                        : 'border-gray-200 text-slate-600 hover:border-blue-300'
-                                        }`}
+                                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-300'
+                                        : 'border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-300'
+                                        } ${hasPayload ? 'opacity-60 cursor-not-allowed' : ''}`}
                                 >
                                     {opt.icon}
                                     {opt.label}
@@ -266,37 +278,64 @@ export default function GeofencePanel({
                         </div>
                     </div>
 
-                    {(createForm.type === 'circle' || createForm.type === 'corridor') && (
-                        <div>
-                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">
-                                {createForm.type === 'circle' ? 'Radius' : 'Corridor Width'} (meters)
-                            </label>
-                            <input
-                                type="number"
-                                value={createForm.radius}
-                                onChange={e => setCreateForm(prev => ({ ...prev, radius: Number(e.target.value) }))}
-                                min={50}
-                                max={50000}
-                                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-950 dark:text-white"
-                            />
+                    {/* Circle radius display (read-only) */}
+                    {isCircle && (
+                        <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Radius</span>
+                                <span className="text-lg font-black text-blue-600 dark:text-blue-400 tabular-nums">
+                                    {circleRadius > 0 ? `${circleRadius.toLocaleString()}m` : '—'}
+                                </span>
+                            </div>
+                            {!hasPayload && (
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                                    Click &amp; drag on the map to draw a circle
+                                </p>
+                            )}
+                            {circleRadius > 0 && (
+                                <div className="h-1 bg-blue-100 dark:bg-blue-900/30 rounded-full mt-1 overflow-hidden">
+                                    <div
+                                        className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${Math.min(100, (circleRadius / 10000) * 100)}%` }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {!drawnPayload ? (
+
+
+                    {/* Action area */}
+                    {!hasPayload ? (
                         <button
                             onClick={handleStartDraw}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-white text-sm font-bold rounded-lg hover:bg-slate-900 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 dark:bg-slate-700 text-white text-sm font-bold rounded-lg hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors"
                         >
-                            <MapPin size={16} /> Draw on Map
+                            <MapPin size={16} />
+                            {isCircle ? 'Draw Circle on Map' : 'Draw on Map'}
                         </button>
                     ) : (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                            <p className="text-xs font-bold text-green-700">Zone drawn on map</p>
-                            <p className="text-[10px] text-green-600 mt-0.5">
-                                {drawnPayload.type === 'polygon' && drawnPayload.points && `${drawnPayload.points.length} points`}
-                                {(drawnPayload.type === 'sausage' || drawnPayload.type === 'corridor') && drawnPayload.points && `${drawnPayload.points.length} waypoints`}
-                                {drawnPayload.type === 'circle' && `${drawnPayload.radius}m radius`}
-                            </p>
+                        <div className="space-y-2">
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 text-center">
+                                <p className="text-xs font-bold text-green-700 dark:text-green-300">✓ Zone drawn on map</p>
+                                <p className="text-[10px] text-green-600 dark:text-green-400 mt-0.5">
+                                    {drawnPayload?.type === 'polygon' && drawnPayload.points && `${drawnPayload.points.length} points`}
+                                    {(drawnPayload?.type === 'sausage' || drawnPayload?.type === 'corridor') && drawnPayload.points && `${drawnPayload.points.length} waypoints`}
+                                    {drawnPayload?.type === 'circle' && `${drawnPayload.radius?.toLocaleString()}m radius`}
+                                </p>
+                            </div>
+                            {/* Redraw / Cancel drawn geofence */}
+                            <button
+                                onClick={() => {
+                                    onCancelDrawing();
+                                    onRadiusChange?.(0);
+                                    // Re-enter drawing mode
+                                    setTimeout(() => onStartDrawing(createForm.type), 100);
+                                }}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                <Trash2 size={12} /> Clear &amp; Redraw
+                            </button>
                         </div>
                     )}
                 </div>
@@ -307,7 +346,7 @@ export default function GeofencePanel({
                         disabled={!createForm.name.trim() || !drawnPayload || saving}
                         className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                        {saving ? 'Saving...' : 'Save Geofence to Navixy'}
+                        {saving ? 'Pushing to Navixy...' : 'Push Geofence to Navixy'}
                     </button>
                 </div>
             </div>
@@ -320,7 +359,7 @@ export default function GeofencePanel({
             <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-[30px] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
                     <button
-                        onClick={() => { setView('list'); onSelectZone(null); }}
+                        onClick={() => { updateView('list'); onSelectZone(null); }}
                         className="p-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
                     >
                         <ArrowLeft size={16} />

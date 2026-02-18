@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,34 @@ export function Dashboard() {
     const isAdmin = checkPermission('admin_only');
 
     const [isDownloading, setIsDownloading] = useState(false);
+
+    // Track which dashboard sections are still loading
+    const [sectionsLoading, setSectionsLoading] = useState<Set<string>>(new Set([
+        'summary', 'dailyAssets', 'movementIdling', 'fuelExpense',
+        'nightDrivers', 'speedViolations', 'geofence',
+    ]));
+    const allSettled = sectionsLoading.size === 0;
+    const canDownload = allSettled && !isDownloading;
+
+    // Stable callbacks for each section
+    const makeSectionLoadingCb = useCallback((key: string) => {
+        return (loading: boolean) => {
+            setSectionsLoading(prev => {
+                const next = new Set(prev);
+                if (loading) next.add(key); else next.delete(key);
+                // Only return new set if actually changed
+                if (next.size === prev.size && [...next].every(k => prev.has(k))) return prev;
+                return next;
+            });
+        };
+    }, []);
+    const onSummaryLoading = useCallback(makeSectionLoadingCb('summary'), [makeSectionLoadingCb]);
+    const onDailyAssetsLoading = useCallback(makeSectionLoadingCb('dailyAssets'), [makeSectionLoadingCb]);
+    const onMovementLoading = useCallback(makeSectionLoadingCb('movementIdling'), [makeSectionLoadingCb]);
+    const onFuelLoading = useCallback(makeSectionLoadingCb('fuelExpense'), [makeSectionLoadingCb]);
+    const onNightLoading = useCallback(makeSectionLoadingCb('nightDrivers'), [makeSectionLoadingCb]);
+    const onSpeedLoading = useCallback(makeSectionLoadingCb('speedViolations'), [makeSectionLoadingCb]);
+    const onGeofenceLoading = useCallback(makeSectionLoadingCb('geofence'), [makeSectionLoadingCb]);
 
     const [summaryFilter, setSummaryFilter] = useState<TF>("30 days");
     const [nightFilter, setNightFilter] = useState<TF>("30 days");
@@ -324,28 +352,45 @@ export function Dashboard() {
                     {/* Right Side: PDF + Ops Toggle */}
                     <div className="flex flex-col items-end gap-2">
                         {/* Download PDF Button */}
-                        <button
-                            onClick={handleDownloadPdf}
-                            disabled={isDownloading}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition-all",
-                                isDownloading
-                                    ? "bg-muted text-muted-foreground cursor-not-allowed"
-                                    : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                        <div className="relative group">
+                            <button
+                                id="download-pdf-btn"
+                                onClick={handleDownloadPdf}
+                                disabled={!canDownload}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition-all",
+                                    !canDownload
+                                        ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                                        : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                                )}
+                            >
+                                {isDownloading ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Generating PDF...
+                                    </>
+                                ) : !allSettled ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Loading...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="h-4 w-4" />
+                                        Download PDF
+                                    </>
+                                )}
+                            </button>
+                            {/* Tooltip on hover when disabled */}
+                            {!canDownload && !isDownloading && (
+                                <div className="absolute right-0 top-full mt-2 z-50 hidden group-hover:block">
+                                    <div className="bg-slate-900 dark:bg-slate-700 text-white text-xs font-medium px-3 py-2 rounded-lg shadow-lg whitespace-nowrap">
+                                        Dashboards are still settling down. Please wait!
+                                        <div className="absolute -top-1 right-4 w-2 h-2 bg-slate-900 dark:bg-slate-700 rotate-45" />
+                                    </div>
+                                </div>
                             )}
-                        >
-                            {isDownloading ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Generating PDF...
-                                </>
-                            ) : (
-                                <>
-                                    <Download className="h-4 w-4" />
-                                    Download PDF
-                                </>
-                            )}
-                        </button>
+                        </div>
 
                         {/* Ops Toggle Switch */}
                         <div className={cn(
@@ -389,6 +434,7 @@ export function Dashboard() {
                         <SummaryMetricsDashboard
                             dateFilter={summaryFilter}
                             setDateFilter={handleSummarySet}
+                            onLoadingChange={onSummaryLoading}
                         />
                     </section>
 
@@ -398,6 +444,7 @@ export function Dashboard() {
                             setDateFilter={(v: string) =>
                                 setCommonFilter((v as TF) || "30 days")
                             }
+                            onLoadingChange={onDailyAssetsLoading}
                         />
                     </section>
 
@@ -407,6 +454,7 @@ export function Dashboard() {
                             setDateFilter={(v: string) =>
                                 setCommonFilter((v as TF) || "30 days")
                             }
+                            onLoadingChange={onMovementLoading}
                         />
                     </section>
 
@@ -416,6 +464,7 @@ export function Dashboard() {
                             setDateFilter={(v: string) =>
                                 setCommonFilter((v as TF) || "30 days")
                             }
+                            onLoadingChange={onFuelLoading}
                         />
                     </section>
 
@@ -425,6 +474,7 @@ export function Dashboard() {
                             setDateFilter={(v: string) =>
                                 setNightFilter((v as TF) || "30 days")
                             }
+                            onLoadingChange={onNightLoading}
                         />
                     </section>
 
@@ -434,11 +484,12 @@ export function Dashboard() {
                             setDateFilter={(v: string) =>
                                 setSpeedFilter((v as TF) || "30 days")
                             }
+                            onLoadingChange={onSpeedLoading}
                         />
                     </section>
 
                     <section className="pdf-section">
-                        <GeofenceDashboard />
+                        <GeofenceDashboard onLoadingChange={onGeofenceLoading} />
                     </section>
                 </div>
             </main>

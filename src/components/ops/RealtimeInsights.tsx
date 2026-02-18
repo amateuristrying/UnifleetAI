@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import {
     AlertTriangle,
     MapPin,
@@ -25,7 +25,7 @@ interface RealtimeInsightsProps {
     zones?: Geofence[];
     trackerLabels?: Record<number, string>;
     monitoredZoneIds?: number[];
-    onToggleMonitorZone?: (zoneId: number) => void;
+    onMonitorZones?: (zoneIds: number[]) => void;
     onSelectZone?: (zoneId: number) => void;
 }
 
@@ -74,35 +74,14 @@ export default function RealtimeInsights({
     zones = [],
     trackerLabels = {},
     monitoredZoneIds = [],
-    onToggleMonitorZone,
+    onMonitorZones,
     onSelectZone
 }: RealtimeInsightsProps) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [expandedMonitorZones, setExpandedMonitorZones] = useState<Set<number>>(new Set());
 
     const monitoredGeofences = useMemo(() => {
         return zones.filter(zone => monitoredZoneIds.includes(zone.id));
     }, [zones, monitoredZoneIds]);
-
-    const autoExpandedRef = useRef<Set<number>>(new Set());
-
-    useEffect(() => {
-        if (monitoredGeofences.length === 0) return;
-        const newIdsToExpand: number[] = [];
-        monitoredGeofences.forEach(z => {
-            if (!autoExpandedRef.current.has(z.id)) {
-                newIdsToExpand.push(z.id);
-                autoExpandedRef.current.add(z.id);
-            }
-        });
-        if (newIdsToExpand.length > 0) {
-            setExpandedMonitorZones(prev => {
-                const next = new Set(prev);
-                newIdsToExpand.forEach(id => next.add(id));
-                return next;
-            });
-        }
-    }, [monitoredGeofences]);
 
     if (!analysis) return (
         <div className="bg-surface-card rounded-2xl p-6 border border-border shadow-sm animate-pulse">
@@ -126,20 +105,41 @@ export default function RealtimeInsights({
         if (onActionSelect) onActionSelect(item);
     };
 
-    const toggleMonitorZone = (zoneId: number) => {
-        setExpandedMonitorZones(prev => {
-            const next = new Set(prev);
-            if (next.has(zoneId)) next.delete(zoneId);
-            else next.add(zoneId);
-            return next;
-        });
-    };
-
     const filteredActions = analysis.actions.filter((a: ActionItem) => {
         if (currentView === 'traffic') return true;
         if (currentView === 'geofences') return a.type !== 'road';
         return true;
     });
+
+    const handleDragStart = (e: React.DragEvent, zoneId: number) => {
+        e.dataTransfer.setData('zoneId', zoneId.toString());
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        const zoneIdStr = e.dataTransfer.getData('zoneId');
+        if (!zoneIdStr) return;
+
+        const zoneId = Number(zoneIdStr);
+        if (isNaN(zoneId)) return;
+
+        // Check limit and duplicates
+        const current = new Set(monitoredZoneIds);
+        if (current.has(zoneId)) return; // Already exists
+
+        if (current.size >= 4) {
+            alert("Maximum 4 geofences can be monitored at once.");
+            return;
+        }
+
+        const newIds = [...monitoredZoneIds, zoneId];
+        onMonitorZones?.(newIds);
+    };
+
+    const handleRemoveMonitor = (zoneId: number) => {
+        const newIds = monitoredZoneIds.filter(id => id !== zoneId);
+        onMonitorZones?.(newIds);
+    };
 
     if (currentView === 'summary') {
         return (
@@ -147,14 +147,20 @@ export default function RealtimeInsights({
                 <div className="flex justify-center">
                     <div
                         onClick={() => onViewChange('geofences')}
-                        className="bg-surface-card rounded-[32px] border border-primary/30 mt-3 shadow-md p-6 w-full max-w-2xl group hover:shadow-xl transition-all duration-500 cursor-pointer overflow-hidden relative"
+                        className="bg-surface-card rounded-[32px] border border-primary/30 mt-3 shadow-md p-6 w-full group hover:shadow-xl transition-all duration-500 cursor-pointer overflow-hidden relative"
                     >
                         <h3 className="text-muted-foreground text-[10px] font-black uppercase tracking-widest mb-6 flex items-center gap-2">
                             <MapPin size={14} className="text-primary" /> Track Geofences
                         </h3>
-                        <div className="grid grid-cols-2 gap-3 flex-1 content-start">
-                            {[...zones].sort((a, b) => b.vehicleCount - a.vehicleCount).slice(0, 6).map((zone) => (
-                                <div key={zone.id} className="flex items-center justify-between p-3.5 rounded-xl bg-muted/30 border border-primary/20 hover:bg-surface-raised hover:shadow-sm transition-all">
+                        {/* ... (Geofence List items remain same) ... */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 flex-1 content-start">
+                            {[...zones].sort((a, b) => b.vehicleCount - a.vehicleCount).slice(0, 12).map((zone) => (
+                                <div
+                                    key={zone.id}
+                                    draggable="true"
+                                    onDragStart={(e) => handleDragStart(e, zone.id)}
+                                    className="flex items-center justify-between p-3.5 rounded-xl bg-muted/30 border border-primary/20 hover:bg-surface-raised hover:shadow-sm transition-all cursor-grab active:cursor-grabbing"
+                                >
                                     <div className="flex items-center gap-3 overflow-hidden">
                                         <div className="w-1.5 h-1.5 shrink-0 rounded-full border-2 border-border" style={{ backgroundColor: zone.color }}></div>
                                         <span className="text-xs font-black text-foreground truncate uppercase">{zone.name}</span>
@@ -165,7 +171,7 @@ export default function RealtimeInsights({
                                 </div>
                             ))}
                             {zones.length === 0 && (
-                                <div className="col-span-2 text-center py-6 text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-30">
+                                <div className="col-span-full text-center py-6 text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-30">
                                     No Active Geofences
                                 </div>
                             )}
@@ -175,73 +181,85 @@ export default function RealtimeInsights({
 
                 <div className="flex justify-center">
                     <div
-                        onClick={() => onViewChange('monitor')}
-                        className="bg-surface-card rounded-[32px] border border-emerald-500/30 shadow-md p-6 w-full max-w-2xl group hover:shadow-xl transition-all duration-500 cursor-pointer overflow-hidden relative"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={handleDrop}
+                        className="bg-surface-card rounded-[32px] border border-emerald-500/30 shadow-md p-6 w-full group hover:shadow-xl transition-all duration-500 overflow-hidden relative min-h-[200px]"
                     >
                         <h3 className="text-muted-foreground text-[10px] font-black uppercase tracking-widest mb-6 flex items-center gap-2">
                             <Eye size={14} className="text-emerald-500" /> Live Observation
                         </h3>
 
-                        <div className="grid grid-cols-2 gap-3 mb-6">
-                            {monitoredGeofences.length > 0 ? monitoredGeofences.map(zone => (
-                                <button
-                                    key={zone.id}
-                                    onClick={(e) => { e.stopPropagation(); toggleMonitorZone(zone.id); }}
-                                    className={cn(
-                                        "flex items-center justify-between p-3.5 rounded-xl border transition-all",
-                                        expandedMonitorZones.has(zone.id) ? "bg-emerald-500/5 text-emerald-700 border-emerald-500/30 shadow-lg shadow-emerald-500/10" : "bg-muted/30 border-emerald-500/15 opacity-70 hover:opacity-100 hover:border-emerald-500/40"
-                                    )}
-                                >
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <span className="text-xs font-black truncate uppercase">{zone.name}</span>
-                                    </div>
-                                    <div className="px-2 py-1 bg-surface-raised rounded-lg border border-border">
-                                        <span className="text-[10px] font-black">{zone.vehicleCount}</span>
-                                    </div>
-                                </button>
-                            )) : (
-                                <div className="col-span-2 text-center text-muted-foreground text-[10px] font-black uppercase tracking-widest py-6 opacity-30">
-                                    Queue monitoring parameters
-                                </div>
-                            )}
-                        </div>
+                        {monitoredGeofences.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-[150px] border-2 border-dashed border-border rounded-xl bg-muted/10">
+                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground text-center px-8 opacity-50">
+                                    Drag geofences from the above tab and put them here for monitoring
+                                </p>
+                            </div>
+                        ) : (
+                            <div className={cn("grid gap-4 animate-in fade-in zoom-in duration-500", monitoredGeofences.length === 1 ? 'grid-cols-1' : 'grid-cols-2 lg:grid-cols-4')}>
+                                {monitoredGeofences.map(zone => {
+                                    const avgDwell = zone.vehicleCount > 0
+                                        ? Object.values(zone.occupants).reduce((acc, occ) => acc + (Date.now() - occ.entryTime), 0) / zone.vehicleCount
+                                        : 0;
 
-                        {expandedMonitorZones.size > 0 && (
-                            <div className={cn("grid gap-4 animate-in fade-in zoom-in duration-500", expandedMonitorZones.size === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
-                                {monitoredGeofences.filter(zone => expandedMonitorZones.has(zone.id)).map(zone => (
-                                    <div key={zone.id} className="bg-muted/20 rounded-2xl border border-border overflow-hidden">
-                                        <div className="px-4 py-3 bg-surface-card/50 border-b border-border flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                <span className="text-[10px] font-black uppercase">{zone.name}</span>
-                                            </div>
-                                            <button onClick={(e) => { e.stopPropagation(); toggleMonitorZone(zone.id); }} className="text-muted-foreground hover:text-red-500"><X size={12} /></button>
-                                        </div>
-                                        <div className="max-h-64 overflow-y-auto custom-scrollbar">
-                                            {zone.vehicleIds.length > 0 ? (
-                                                <div className="divide-y divide-border/50">
-                                                    {zone.vehicleIds.map(vId => {
-                                                        const occupant = zone.occupants[vId];
-                                                        const dwell = occupant ? formatDuration(Date.now() - occupant.entryTime) : '--';
-                                                        return (
-                                                            <div key={vId} className="px-4 py-3 hover:bg-surface-raised transition-colors flex flex-col gap-2">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-[11px] font-black truncate text-foreground">{trackerLabels[vId] || vId}</span>
-                                                                    <StatusBadge status={occupant?.status || 'Active'} />
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase">
-                                                                    <Clock size={10} /> {dwell} In Zone
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
+                                    return (
+                                        <div key={zone.id} className="bg-muted/20 rounded-2xl border border-border overflow-hidden flex flex-col h-[320px]">
+                                            {/* Header */}
+                                            <div className="p-4 bg-surface-card/50 border-b border-border flex flex-col gap-2 shrink-0 relative">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleRemoveMonitor(zone.id); }}
+                                                    className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+
+                                                <div className="flex items-center gap-2 pr-6">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+                                                    <span className="text-sm font-black uppercase truncate tracking-tight text-foreground" title={zone.name}>{zone.name}</span>
                                                 </div>
-                                            ) : (
-                                                <div className="p-8 text-center text-[10px] font-black text-muted-foreground uppercase opacity-30 italic">Empty</div>
-                                            )}
+
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <div className="px-2 py-1 bg-surface-raised rounded-md text-[10px] font-bold border border-border shadow-sm">
+                                                        {zone.vehicleCount} Assets Inside
+                                                    </div>
+                                                    {zone.vehicleCount > 0 && (
+                                                        <div className="px-2 py-1 bg-blue-500/10 text-blue-600 rounded-md text-[10px] font-bold border border-blue-500/20">
+                                                            Avg: {formatDuration(avgDwell)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Content */}
+                                            <div className="flex-1 overflow-y-auto custom-scrollbar bg-surface-card/30 p-2">
+                                                {zone.vehicleIds.length > 0 ? (
+                                                    <div className="space-y-2">
+                                                        {zone.vehicleIds.map(vId => {
+                                                            const occupant = zone.occupants[vId];
+                                                            const dwell = occupant ? formatDuration(Date.now() - occupant.entryTime) : '--';
+                                                            return (
+                                                                <div key={vId} className="px-3 py-2.5 bg-surface-card border border-border/50 rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col gap-1.5 group">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <span className="text-[11px] font-black truncate text-foreground group-hover:text-primary transition-colors">{trackerLabels[vId] || vId}</span>
+                                                                        <StatusBadge status={occupant?.status || 'Active'} />
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                                        <Clock size={10} className="text-primary/70" />
+                                                                        <span>{dwell}</span>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                                                        <p className="text-[10px] font-black text-muted-foreground uppercase opacity-30 italic">No assets inside</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -283,7 +301,7 @@ export default function RealtimeInsights({
                                             <p className="text-2xl font-black text-foreground leading-none">{Object.keys(zone.occupants || {}).length}</p>
                                             <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Occupants</p>
                                         </div>
-                                        <button onClick={(e) => { e.stopPropagation(); onToggleMonitorZone?.(zone.id); }} className="p-2 text-muted-foreground hover:text-red-500"><X size={18} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleRemoveMonitor(zone.id); }} className="p-2 text-muted-foreground hover:text-red-500"><X size={18} /></button>
                                     </div>
                                 </div>
                                 <div className="p-6">

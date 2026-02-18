@@ -36,10 +36,29 @@ export default function LiveGeofences() {
 
     const [focusedAction, setFocusedAction] = useState<any | null>(null);
 
-    const [drawingMode, setDrawingMode] = useState<'none' | 'polygon' | 'corridor' | 'circle'>('none');
+    const [drawingMode, setDrawingMode] = useState<'none' | 'polygon' | 'circle'>('none');
+    const [drawingRadius, setDrawingRadius] = useState<number>(0);
     const [drawnPayload, setDrawnPayload] = useState<CreateZonePayload | null>(null);
-    const [monitoredZoneIds, setMonitoredZoneIds] = useState<number[]>([]);
+
+    // Persistence for monitored zones
+    const [monitoredZoneIds, setMonitoredZoneIds] = useState<number[]>(() => {
+        try {
+            const key = ops === 'tanzania' ? 'monitored_zones_TZ' : 'monitored_zones_ZM';
+            const saved = localStorage.getItem(key);
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+
+    // Save persistence
+    useEffect(() => {
+        const key = ops === 'tanzania' ? 'monitored_zones_TZ' : 'monitored_zones_ZM';
+        localStorage.setItem(key, JSON.stringify(monitoredZoneIds));
+    }, [monitoredZoneIds, ops]);
+
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [panelViewMode, setPanelViewMode] = useState<'list' | 'create' | 'detail'>('list');
 
     // Map Ops to Region
     const region = ops === 'tanzania' ? 'TZ' : 'ZM';
@@ -58,6 +77,12 @@ export default function LiveGeofences() {
         setTrackerIds([]);
         setTrackerLabels({});
         setMonitoredZoneIds([]);
+        // Re-load per ops (though initial state handles mount, switching ops needs manual reload)
+        const key = ops === 'tanzania' ? 'monitored_zones_TZ' : 'monitored_zones_ZM';
+        try {
+            const saved = localStorage.getItem(key);
+            if (saved) setMonitoredZoneIds(JSON.parse(saved));
+        } catch { }
 
         const initTrackers = async () => {
             try {
@@ -167,6 +192,15 @@ export default function LiveGeofences() {
                         {loading && <Loader2 className="animate-spin text-primary" size={20} />}
                         <div className="flex items-center gap-3">
                             <button
+                                onClick={() => {
+                                    setCurrentView('geofences');
+                                    setPanelViewMode('create');
+                                }}
+                                className="h-10 px-4 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary/90 transition-all shadow-sm flex items-center gap-2 active:scale-95"
+                            >
+                                <span className="text-lg leading-none">+</span> Add Zone
+                            </button>
+                            <button
                                 onClick={handleGlobalRefresh}
                                 className="h-10 px-4 bg-surface-raised border border-border rounded-xl hover:bg-muted text-foreground transition-all shadow-sm flex items-center gap-3 active:scale-95"
                             >
@@ -195,6 +229,7 @@ export default function LiveGeofences() {
                                 zones={zones}
                                 trackerLabels={trackerLabels}
                                 monitoredZoneIds={monitoredZoneIds}
+                                onMonitorZones={setMonitoredZoneIds}
                             />
                         </div>
                     ) : (
@@ -219,13 +254,17 @@ export default function LiveGeofences() {
                                     onCreateZone={createZone}
                                     onDeleteZone={deleteZone}
                                     onStartDrawing={setDrawingMode}
-                                    onCancelDrawing={() => setDrawingMode('none')}
+                                    onCancelDrawing={() => { setDrawingMode('none'); setDrawnPayload(null); setDrawingRadius(0); }}
                                     drawnPayload={drawnPayload}
                                     monitoredZoneIds={monitoredZoneIds}
                                     onMonitorZones={setMonitoredZoneIds}
                                     region={region}
                                     onRefresh={refreshZones}
                                     viewMode={isLocked ? 'locked' : 'unlocked'}
+                                    externalViewMode={panelViewMode}
+                                    onViewModeChange={setPanelViewMode}
+                                    drawingRadius={drawingRadius}
+                                    onRadiusChange={setDrawingRadius}
                                 />
                             </div>
 
@@ -241,9 +280,19 @@ export default function LiveGeofences() {
                                     selectedZoneId={selectedZoneId}
                                     onSelectZone={setSelectedZoneId}
                                     drawingMode={drawingMode}
-                                    onDrawComplete={(p) => { setDrawnPayload(p); setDrawingMode('none'); }}
+                                    onDrawComplete={(p) => {
+                                        setDrawnPayload(p);
+                                        // For circles, keep drawingMode so preview stays visible
+                                        // For others, exit drawing mode
+                                        if (p.type !== 'circle') {
+                                            setDrawingMode('none');
+                                        }
+                                    }}
                                     onDrawCancel={() => setDrawingMode('none')}
                                     viewMode={isLocked ? 'locked' : 'unlocked'}
+                                    drawingRadius={drawingRadius}
+                                    onRadiusChange={setDrawingRadius}
+                                    drawnPayload={drawnPayload}
                                 />
                             </div>
                         </div>

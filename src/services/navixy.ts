@@ -168,27 +168,66 @@ export const NavixyService = {
     },
 
     createZone: async (payload: any, sessionKey: string): Promise<{ id: number } | null> => {
-        const params = new URLSearchParams({
-            hash: sessionKey,
+        const zoneType = payload.type === 'corridor' ? 'sausage' : payload.type;
+
+        // Build zone object per Navixy API spec
+        const zoneObj: Record<string, any> = {
             label: payload.label,
-            type: payload.type === 'corridor' ? 'sausage' : payload.type,
-            color: payload.color || '#3b82f6',
-            visible: 'true'
+            type: zoneType,
+            color: (payload.color || '#3b82f6').replace('#', '').toUpperCase(),
+            address: '',
+        };
+
+        if (zoneType === 'circle') {
+            zoneObj.radius = payload.radius;
+            // Navixy uses "lat"/"lng" in their zone object
+            zoneObj.center = {
+                lat: payload.center.lat,
+                lng: payload.center.lng,
+            };
+        }
+
+        if (zoneType === 'polygon' && payload.points && payload.points.length >= 3) {
+            zoneObj.points = payload.points;
+        }
+
+        console.log('[NavixyService] Creating zone with JSON body:', JSON.stringify({ hash: '***', zone: zoneObj }, null, 2));
+
+        // Try sending as JSON body (Navixy v2 supports this)
+        const data = await fetchJson(`/zone/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                hash: sessionKey,
+                zone: zoneObj,
+            }),
         });
 
-        if (payload.type === 'circle') {
-            params.append('radius', payload.radius.toString());
-            params.append('center_lat', payload.center.lat.toString());
-            params.append('center_lng', payload.center.lng.toString());
-        } else if (payload.type === 'sausage' || payload.type === 'corridor') {
-            params.append('radius', payload.radius.toString());
-        }
-
-        const data = await fetchJson(`/zone/create?${params.toString()}`, { method: 'POST' });
         if (data && data.success) {
+            console.log('[NavixyService] ✓ Zone created successfully! ID:', data.id);
             return { id: data.id };
         }
-        console.error('Create Zone Error:', data);
+
+        // If JSON body failed, try form-urlencoded as fallback
+        if (data && !data.success) {
+            console.warn('[NavixyService] JSON body failed, trying form-urlencoded...');
+            const params = new URLSearchParams({
+                hash: sessionKey,
+                zone: JSON.stringify(zoneObj),
+            });
+            const data2 = await fetchJson(`/zone/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params.toString(),
+            });
+            if (data2 && data2.success) {
+                console.log('[NavixyService] ✓ Zone created via form-urlencoded! ID:', data2.id);
+                return { id: data2.id };
+            }
+            console.error('[NavixyService] ✗ Both methods failed:', data2);
+        }
+
+        console.error('[NavixyService] ✗ Create Zone Error:', data);
         return null;
     },
 
