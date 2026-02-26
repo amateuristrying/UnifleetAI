@@ -88,6 +88,13 @@ export function DailyAssetsActiveDashboard({
 
     const filteredData = useMemo(() => {
         if (dateFilter === '7 days') return rawAssets.slice(-7);
+        if (dateFilter === 'MTD') {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const startOfMonth = `${y}-${m}-01`;
+            return rawAssets.filter(p => p.date >= startOfMonth);
+        }
         return rawAssets;
     }, [rawAssets, dateFilter]);
 

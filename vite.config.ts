@@ -68,6 +68,18 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/zambia\/vehiclewise/, ''),
         secure: true,
       },
+      '/api/zambia/below-avg': {
+        target: 'https://g95ejze48d.execute-api.ap-south-1.amazonaws.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/zambia\/below-avg/, ''),
+        secure: true,
+      },
+      '/api/zambia/above-avg': {
+        target: 'https://gvv0lxp9ub.execute-api.ap-south-1.amazonaws.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/zambia\/above-avg/, ''),
+        secure: true,
+      },
       // ===== TANZANIA APIs =====
       '/api/tanzania/summaryapi': {
         target: 'https://6s4huxb9i1.execute-api.ap-south-1.amazonaws.com',
@@ -115,6 +127,18 @@ export default defineConfig({
         target: 'https://jffvmywo20.execute-api.ap-south-1.amazonaws.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/tanzania\/vehiclewise/, ''),
+        secure: true,
+      },
+      '/api/tanzania/below-avg': {
+        target: 'https://rjgup9a7el.execute-api.ap-south-1.amazonaws.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/tanzania\/below-avg/, ''),
+        secure: true,
+      },
+      '/api/tanzania/above-avg': {
+        target: 'https://rjgup9a7el.execute-api.ap-south-1.amazonaws.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/tanzania\/above-avg/, ''),
         secure: true,
       },
     }

@@ -12,13 +12,13 @@ export const LimitedDateFilter: React.FC<LimitedDateFilterProps> = ({ title, dat
         <Calendar className="w-4 h-4 text-gray-500" />
         <span className="text-xs font-medium uppercase text-gray-500">{title}:</span>
         <div className="flex gap-1">
-            {['7 days', '30 days'].map((period) => (
+            {['7 days', 'MTD', '30 days'].map((period) => (
                 <button
                     key={period}
                     onClick={() => setDateFilter(period)}
                     className={`px-3 py-1.5 text-xs font-medium uppercase rounded-full transition-all ${dateFilter === period
-                            ? 'bg-blue-500 text-white shadow-sm'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-blue-500 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                 >
                     {period}

@@ -546,24 +546,38 @@ export function Reports() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
 
-        const periodKey = windowKey(tf);
-        const vehicles = Array.isArray(json?.data?.[periodKey]) ? json.data[periodKey] : [];
-        if (!vehicles.length) return alert(`No vehicles found below target for ${tf}.`);
+        if (!json?.data) return alert("No Below Avg Driving data found.");
 
-        let rows = vehicles.map((v: any) => ({
-            "time frame": v["time frame"] ?? periodKey,
-            tracker_name: v.tracker_name,
-            total_kms_travelled: Number(v.total_kms_travelled ?? 0),
-            target_kms: Number(v.target_kms ?? 300),
-            total_drive_hrs: Number(v.total_drive_hrs ?? 0),
-            "utilization%": Number(v["utilization%"] ?? 0),
-        }));
+        const periodKey = windowKey(tf);
+        const vehiclesRaw = json.data[periodKey];
+        const vehicles: any[] = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];
+
+        if (!vehicles.length) {
+            return alert(`No vehicles found below target distance for ${tf}.`);
+        }
+
+        let rows = vehicles.map((v: any) => {
+            const timeFrame = v["time frame"] ?? v.time_frame ?? periodKey;
+            const totalKms = v.total_kms_travelled ?? v.total_km ?? 0;
+            const targetKms = v.target_kms ?? 300;
+            const utilization = v["utilization%"] ?? v.utilization_pct ?? 0;
+
+            return {
+                "time frame": timeFrame,
+                tracker_name: v.tracker_name,
+                total_kms_travelled: Number(totalKms ?? 0),
+                target_kms: Number(targetKms ?? 0),
+                total_drive_hrs: Number(v.total_drive_hrs ?? 0),
+                "utilization%": Number(utilization ?? 0),
+            };
+        });
 
         rows = filterByVehicle(rows);
         if (!rows.length) return alert("No data for the selected vehicle.");
 
         const csv = Papa.unparse(rows);
-        downloadBlob(csv, `BelowAvg_${ops}_${periodKey}_${new Date().toISOString().slice(0, 10)}.csv`);
+        const filename = `BelowAvgDriving_${ops}_${periodKey}_${json.anchor_date || new Date().toISOString().split('T')[0]}.csv`;
+        downloadBlob(csv, filename);
     };
 
     const dlAboveAvg = async (tf: TfAll) => {
@@ -575,24 +589,45 @@ export function Reports() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
 
-        const periodKey = windowKey(tf);
-        const vehicles = Array.isArray(json?.data?.[periodKey]) ? json.data[periodKey] : [];
-        if (!vehicles.length) return alert(`No vehicles found above target for ${tf}.`);
+        if (!json?.data) return alert("No Above Avg Driving data found.");
 
-        let rows = vehicles.map((v: any) => ({
-            "time frame": v["time frame"] ?? periodKey,
-            tracker_name: v.tracker_name,
-            total_kms_travelled: Number(v.total_kms_travelled ?? 0),
-            target_kms: Number(v.target_kms ?? 300),
-            total_drive_hrs: Number(v.total_drive_hrs ?? 0),
-            "utilization%": Number(v["utilization%"] ?? 0),
-        }));
+        const periodKey = windowKey(tf);
+        const vehiclesRaw = json.data[periodKey];
+        const vehicles: any[] = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];
+
+        if (!vehicles.length) {
+            return alert(`No vehicles found above target distance for ${tf}.`);
+        }
+
+        // Sort by utilization% DESC (top performers first)
+        const sorted = [...vehicles].sort((a: any, b: any) => {
+            const bUtil = Number(b["utilization%"] ?? b.utilization_pct ?? 0);
+            const aUtil = Number(a["utilization%"] ?? a.utilization_pct ?? 0);
+            return bUtil - aUtil;
+        });
+
+        let rows = sorted.map((v: any) => {
+            const timeFrame = v["time frame"] ?? v.time_frame ?? periodKey;
+            const totalKms = v.total_kms_travelled ?? v.total_km ?? 0;
+            const targetKms = v.target_kms ?? 300;
+            const utilization = v["utilization%"] ?? v.utilization_pct ?? 0;
+
+            return {
+                "time frame": timeFrame,
+                tracker_name: v.tracker_name,
+                total_kms_travelled: Number(totalKms ?? 0),
+                target_kms: Number(targetKms ?? 0),
+                total_drive_hrs: Number(v.total_drive_hrs ?? 0),
+                "utilization%": Number(utilization ?? 0),
+            };
+        });
 
         rows = filterByVehicle(rows);
         if (!rows.length) return alert("No data for the selected vehicle.");
 
         const csv = Papa.unparse(rows);
-        downloadBlob(csv, `AboveAvg_${ops}_${periodKey}_${new Date().toISOString().slice(0, 10)}.csv`);
+        const filename = `AboveAvgDriving_${ops}_${periodKey}_${json.anchor_date || new Date().toISOString().split('T')[0]}.csv`;
+        downloadBlob(csv, filename);
     };
 
     /* ── Geofence List Download (Direct) ── */
@@ -854,18 +889,20 @@ export function Reports() {
                                         <Truck size={14} />
                                         Entire Fleet
                                     </button>
-                                    <button
-                                        onClick={() => setScope("vehicle")}
-                                        className={cn(
-                                            "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 border flex items-center gap-2",
-                                            scope === "vehicle"
-                                                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                                : "bg-muted text-muted-foreground border-border hover:bg-muted/80 hover:border-border"
-                                        )}
-                                    >
-                                        <Search size={14} />
-                                        Specific Vehicle
-                                    </button>
+                                    {selectedReport.id !== "geofence-report" && (
+                                        <button
+                                            onClick={() => setScope("vehicle")}
+                                            className={cn(
+                                                "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 border flex items-center gap-2",
+                                                scope === "vehicle"
+                                                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                                    : "bg-muted text-muted-foreground border-border hover:bg-muted/80 hover:border-border"
+                                            )}
+                                        >
+                                            <Search size={14} />
+                                            Specific Vehicle
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Vehicle Search */}

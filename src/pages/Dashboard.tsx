@@ -17,7 +17,7 @@ import { useTheme } from "@/context/ThemeProvider";
 import logoLight from "@/assets/unifleet_logo.png";
 import logoDark from "@/assets/unifleet_logo_dark.png";
 
-type TF = "1 day" | "7 days" | "30 days";
+type TF = "1 day" | "7 days" | "30 days" | "MTD";
 
 const OPS_LABEL: Record<"zambia" | "tanzania", string> = {
     zambia: "Zambian Ops",
@@ -85,13 +85,22 @@ export function Dashboard() {
             setSummaryFilter("1 day");
             setNightFilter("1 day");
             setSpeedFilter("1 day");
+            setCommonFilter("30 days");
         } else if (df === "30d") {
             setSummaryFilter("30 days");
             setNightFilter("30 days");
             setSpeedFilter("30 days");
             setCommonFilter("30 days");
+        } else if (df === "mtd") {
+            setSummaryFilter("MTD");
+            setNightFilter("MTD");
+            setSpeedFilter("MTD");
+            setCommonFilter("MTD");
         } else if (df === "7d") {
             setSummaryFilter("7 days");
+            setNightFilter("7 days");
+            setSpeedFilter("7 days");
+            setCommonFilter("7 days");
         }
     }, [location.search]);
 
@@ -101,9 +110,11 @@ export function Dashboard() {
         if (nx === "1 day") {
             setNightFilter("1 day");
             setSpeedFilter("1 day");
-        } else if (nx === "30 days") {
-            setNightFilter("30 days");
-            setSpeedFilter("30 days");
+            setCommonFilter("30 days");
+        } else if (nx === "30 days" || nx === "MTD" || nx === "7 days") {
+            setNightFilter(nx);
+            setSpeedFilter(nx);
+            setCommonFilter(nx);
         }
     };
 
@@ -212,6 +223,7 @@ export function Dashboard() {
                 "1 day": "Last 1 Day",
                 "7 days": "Last 7 Days",
                 "30 days": "Last 30 Days",
+                "MTD": "Month to Date",
             };
             const subtitleText = `(${subtitleMap[summaryFilter] || "Last 30 Days"})`;
             pdf.setFont("helvetica", "normal");

@@ -43,12 +43,27 @@ export const MovementIdlingDashboard: React.FC<MovementIdlingDashboardProps> = (
             setLoading(true);
             try {
                 const base = api(ops, "inMovementVsIdling").replace(/\/+$/, "");
-                const res = await fetch(base);
+                const windowType = dateFilter === "7 days" ? "7d" : dateFilter === "MTD" ? "mtd" : "30d";
+                const url = `${base}?window=${windowType}`;
+
+                const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
-                const payload = json?.results ?? json;
-                const key = dateFilter === "7 days" ? "last7days" : "last30days";
-                const series: DataPoint[] = payload?.[key]?.data ?? [];
+
+                console.log(`[MovementIdling] URL: ${url}`, json);
+
+                // New flat format: json.data  |  Legacy: json.results.lastXdays.data
+                const legacyKey = windowType === '7d' ? 'last7days' : 'last30days';
+                let series = json?.data
+                    ?? json?.results?.[legacyKey]?.data
+                    ?? [];
+                if (dateFilter === "MTD" && Array.isArray(series)) {
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, '0');
+                    const startOfMonth = `${y}-${m}-01`;
+                    series = series.filter((d: any) => d.date >= startOfMonth);
+                }
                 setData(Array.isArray(series) ? series : []);
             } catch (e) {
                 console.error("Failed to fetch movement vs idling", e);

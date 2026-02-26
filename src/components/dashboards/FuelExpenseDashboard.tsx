@@ -34,19 +34,31 @@ export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
         const fetchFuelExpense = async () => {
             setLoading(true);
             try {
-                const base = api(ops, 'fuelExpense');
-                const url = /\/fuel-expense\/?$/.test(base)
-                    ? base
-                    : `${base.replace(/\/$/, '')}/fuel-expense`;
+                const base = api(ops, 'fuelExpense').replace(/\/+$/, '');
+                const endpoint = /\/fuel-expense$/.test(base) ? base : `${base}/fuel-expense`;
+                const windowType = dateFilter === "7 days" ? "7d" : dateFilter === "MTD" ? "mtd" : "30d";
+                const url = `${endpoint}?window=${windowType}`;
 
                 const res = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
 
-                const windowData =
-                    dateFilter === '7 days'
-                        ? json?.results?.last7days?.fuel_expense
-                        : json?.results?.last30days?.fuel_expense;
+                console.log(`[FuelExpense] URL: ${url}`, json);
+
+                // New flat format: json.fuel_expense  |  Legacy: json.results.lastXdays.fuel_expense
+                const legacyKey = windowType === '7d' ? 'last7days' : 'last30days';
+                let windowData = json?.fuel_expense
+                    ?? json?.results?.[legacyKey]?.fuel_expense
+                    ?? [];
+
+                // For MTD, ensure data starts from 1st of current month
+                if (dateFilter === "MTD" && Array.isArray(windowData)) {
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, '0');
+                    const startOfMonth = `${y}-${m}-01`;
+                    windowData = windowData.filter((d: any) => String(d.date) >= startOfMonth);
+                }
 
                 const processed: FuelExpensePoint[] = Array.isArray(windowData)
                     ? windowData.map((d: { date: string; motion_usd?: number; idle_usd?: number }) => ({

@@ -30,8 +30,8 @@ const ZAMBIA: ApiSet = {
     speedViolations: "/api/zambia/speed/speed-violations",
     geofjson: "/api/zambia/geofence/geofence-snapshot",
     vehiclewiseSummary: "/api/zambia/vehiclewise/vehiclewise-summary-metrics",
-    belowAvgDriving: "/api/zambia/below-avg/below-avg-driving",
-    aboveAvgDriving: "/api/zambia/above-avg/above-avg-driving",
+    belowAvgDriving: "/api/zambia/below-avg/belowAvgDriving",
+    aboveAvgDriving: "/api/zambia/above-avg/aboveAvgDriving",
 };
 
 // Tanzania APIs

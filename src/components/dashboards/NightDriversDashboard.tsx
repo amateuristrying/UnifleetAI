@@ -8,8 +8,8 @@ import { SmartDateXAxis } from "@/components/SmartDateXAxis";
 import { useOps } from "@/context/OpsContext";
 import { api } from "@/context/config";
 
-type Period = "1d" | "7d" | "30d";
-type TF = "1 day" | "7 days" | "30 days";
+type Period = "1d" | "7d" | "30d" | "mtd";
+type TF = "1 day" | "7 days" | "30 days" | "MTD";
 
 interface Rank { rank: number; vehicle_number: string; night_driving_hours: number; }
 interface DailyTotal { date: string; total_night_hours: number; }
@@ -21,10 +21,10 @@ interface NightDriversDashboardProps {
 }
 
 const tfToPeriod = (tf: TF): Period =>
-    tf === "1 day" ? "1d" : tf === "7 days" ? "7d" : "30d";
+    tf === "1 day" ? "1d" : tf === "7 days" ? "7d" : tf === "MTD" ? "mtd" : "30d";
 
 const periodToTf = (p: Period): TF =>
-    p === "1d" ? "1 day" : p === "7d" ? "7 days" : "30 days";
+    p === "1d" ? "1 day" : p === "7d" ? "7 days" : p === "mtd" ? "MTD" : "30 days";
 
 export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
     dateFilter,
@@ -50,6 +50,7 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
         switch (filter) {
             case "1d": return ["last_1_day", "latest", "1d", "day"];
             case "7d": return ["last_7_days", "last7days", "7d", "week"];
+            case "mtd": return ["mtd", "month_to_date"];
             default: return ["last_30_days", "last30days", "30d", "month"];
         }
     }, [filter]);
@@ -60,12 +61,13 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
             try {
                 const base = api(ops, "nightDriving").replace(/\/+$/, "");
                 const endpoint = /\/night-driving$/.test(base) ? base : `${base}/night-driving`;
-                const url = `${endpoint}?period=${filter}`;
+                const url = `${endpoint}?period=${filter}&window=${filter}`;
 
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
                 const payload = json?.results ?? json;
+                console.log('[NightDrivers] MTD Verification:', { window: json?.window ?? payload?.window, source: json?.source_key ?? payload?.source_key });
 
                 let bucket: Record<string, unknown> | undefined;
                 for (const k of periodKeys) {
@@ -85,6 +87,14 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
                     const anchor = (bucket?.anchor_date as string) || (json?.anchor_date as string) || new Date().toISOString().slice(0, 10);
                     t = [{ date: String(anchor), total_night_hours: Number(sum.toFixed(2)) }];
                 }
+                // For MTD, ensure chart starts from 1st of current month
+                if (filter === "mtd" && t.length > 0) {
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, '0');
+                    const startOfMonth = `${y}-${m}-01`;
+                    t = t.filter(d => d.date >= startOfMonth);
+                }
                 setTotals(t || []);
             } catch (e) {
                 console.error("Night driving fetch failed:", e);
@@ -98,7 +108,7 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
 
     const onClickFilter = (p: Period) => {
         setFilter(p);
-        if (setDateFilter && (p === "1d" || p === "30d")) {
+        if (setDateFilter && (p === "1d" || p === "30d" || p === "mtd")) {
             setDateFilter(periodToTf(p));
         }
     };
@@ -111,7 +121,7 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
                     <h3 className="text-lg font-bold uppercase tracking-wide">NIGHT DRIVERS ANALYSIS</h3>
                 </div>
                 <div className="flex gap-2 mb-6">
-                    {(["1d", "7d", "30d"] as const).map(f => (
+                    {(["1d", "7d", "mtd", "30d"] as const).map(f => (
                         <button
                             key={f}
                             className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${f === filter
@@ -120,7 +130,7 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
                                 }`}
                             onClick={() => onClickFilter(f)}
                         >
-                            {f === "1d" ? "1 Day" : f === "7d" ? "7 Days" : "30 Days"}
+                            {f === "1d" ? "1 Day" : f === "7d" ? "7 Days" : f === "mtd" ? "MTD" : "30 Days"}
                         </button>
                     ))}
                 </div>

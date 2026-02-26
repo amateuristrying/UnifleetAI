@@ -30,10 +30,11 @@ interface Violator {
     maxSpeedKmph: number;
 }
 
-const WINDOW_MAP: Record<string, '1d' | '7d' | '30d'> = {
+const WINDOW_MAP: Record<string, '1d' | '7d' | '30d' | 'mtd'> = {
     '1 day': '1d',
     '7 days': '7d',
     '30 days': '30d',
+    'MTD': 'mtd',
 };
 
 function fmtDayLabel(iso: string) {
@@ -92,25 +93,42 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
                     return;
                 }
 
-                const window = WINDOW_MAP[dateFilter] ?? '30d';
-                const url = `${base}?window=${window}&limit=15`;
+                const windowVal = WINDOW_MAP[dateFilter] ?? '30d';
+                let url = `${base}?window=${windowVal}&limit=15`;
 
-                const res = await fetch(url);
+                let res = await fetch(url);
+                let raw = await res.json();
+
+                // If MTD not supported by this backend, fallback to 30d
+                if (windowVal === 'mtd' && (!res.ok || raw?.message || raw?.error)) {
+                    console.warn('[SpeedViolations] MTD not available, falling back to 30d');
+                    url = `${base}?window=30d&limit=15`;
+                    res = await fetch(url);
+                    raw = await res.json();
+                }
+
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const raw = await res.json();
                 console.log('[SpeedViolations] Raw response:', raw);
 
                 // Handle nested body JSON (like UNIFLEET 3)
                 const payload = raw?.status ? raw : (raw?.body ? JSON.parse(raw.body) : raw);
                 console.log('[SpeedViolations] Parsed payload:', payload);
+                console.log('[SpeedViolations] Verification:', { window: payload?.window, source: payload?.source_key });
 
                 const byDayRaw = payload?.by_day ?? payload?.byDay ?? payload?.violations_by_day ?? [];
                 const violatorsRaw = payload?.violators ?? payload?.top_violators ?? payload?.topViolators ?? [];
 
-                console.log('[SpeedViolations] byDay:', byDayRaw);
-                console.log('[SpeedViolations] violators:', violatorsRaw);
+                let byDayArr = Array.isArray(byDayRaw) ? byDayRaw : [];
+                // For MTD, ensure chart starts from 1st of current month
+                if (windowVal === 'mtd' && byDayArr.length > 0) {
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, '0');
+                    const startOfMonth = `${y}-${m}-01`;
+                    byDayArr = byDayArr.filter((d: any) => String(d.date) >= startOfMonth);
+                }
 
-                setByDay(coerceByDay(Array.isArray(byDayRaw) ? byDayRaw : []));
+                setByDay(coerceByDay(byDayArr));
                 setViolators(coerceViolators(Array.isArray(violatorsRaw) ? violatorsRaw : []));
             } catch (e) {
                 console.error('Speed violations fetch failed:', e);

@@ -55,7 +55,7 @@ function MetricRow({ label, value }: { label: string; value: MetricValue }) {
     );
 }
 
-function buildSummaryUrl(base: string, table: 's1' | 's2', period: 'latest' | '7d' | '30d') {
+function buildSummaryUrl(base: string, table: 's1' | 's2', period: 'latest' | '7d' | '30d' | 'mtd') {
     const root = base.replace(/\/$/, '');
     const withPath = root.endsWith('/summary') ? root : `${root}/summary`;
     return `${withPath}?table=${table}&period=${period}`;
@@ -79,10 +79,11 @@ export function SummaryMetricsDashboard({
         const fetchSummaries = async () => {
             setLoading(true);
             try {
-                const periodMap: Record<string, 'latest' | '7d' | '30d'> = {
+                const periodMap: Record<string, 'latest' | '7d' | '30d' | 'mtd'> = {
                     '1 day': 'latest',
                     '7 days': '7d',
                     '30 days': '30d',
+                    'MTD': 'mtd',
                 };
                 const period = periodMap[dateFilter] ?? 'latest';
 
@@ -93,14 +94,30 @@ export function SummaryMetricsDashboard({
 
                 console.log('[SummaryMetrics] Fetching:', { s1Url, s2Url });
 
-                const [res1, res2] = await Promise.all([
+                let [res1, res2] = await Promise.all([
                     fetch(s1Url, { signal: controller.signal }),
                     fetch(s2Url, { signal: controller.signal }),
                 ]);
-                const [data1, data2] = await Promise.all([res1.json(), res2.json()]);
+                let [data1, data2] = await Promise.all([res1.json(), res2.json()]);
+
+                // If MTD files don't exist on this backend yet, fallback to 30d
+                if (period === 'mtd' && (data1?.error || data2?.error)) {
+                    console.warn('[SummaryMetrics] MTD not available, falling back to 30d');
+                    const s1Fallback = buildSummaryUrl(base, 's1', '30d');
+                    const s2Fallback = buildSummaryUrl(base, 's2', '30d');
+                    [res1, res2] = await Promise.all([
+                        fetch(s1Fallback, { signal: controller.signal }),
+                        fetch(s2Fallback, { signal: controller.signal }),
+                    ]);
+                    [data1, data2] = await Promise.all([res1.json(), res2.json()]);
+                }
 
                 console.log('[SummaryMetrics] S1 Response:', data1);
                 console.log('[SummaryMetrics] S2 Response:', data2);
+                console.log('[SummaryMetrics] Verification:', {
+                    s1window: data1?.window, s1source: data1?.source_key,
+                    s2window: data2?.window, s2source: data2?.source_key
+                });
 
                 // Parse S1 - using exact keys from UNIFLEET 3 API (values are strings)
                 const m1 = data1?.metrics ?? {};
