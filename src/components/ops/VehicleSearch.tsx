@@ -22,32 +22,42 @@ export default function VehicleSearch({
     const { checkPermission } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Get total count of trackers
-    const totalTrackers = Object.keys(trackerLabels).length;
+    // Combine IDs from both labels and states
+    const allTrackerIds = useMemo(() => {
+        return Array.from(new Set([
+            ...Object.keys(trackerLabels).map(Number),
+            ...Object.keys(trackerStates).map(Number)
+        ]));
+    }, [trackerLabels, trackerStates]);
+
+    const totalTrackers = allTrackerIds.length;
 
     // Filter vehicles based on search query
     const searchResults = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
         if (!q) return [];
 
-        return Object.entries(trackerLabels)
-            .filter(([_, label]) => label.toLowerCase().includes(q))
+        return allTrackerIds
+            .map(id => {
+                const label = trackerLabels[id] || `Asset #${id}`;
+                return { id, label };
+            })
+            .filter(({ id, label }) => label.toLowerCase().includes(q) || String(id).includes(q))
             .slice(0, 15) // Limit to 15 results
-            .map(([id, label]) => {
-                const trackerId = Number(id);
-                const state = trackerStates[trackerId];
+            .map(({ id, label }) => {
+                const state = trackerStates[id];
                 const status = state ? getVehicleStatus(state) : 'offline';
                 const speed = state?.gps?.speed || 0;
 
                 return {
-                    id: trackerId,
+                    id,
                     label,
                     status,
                     speed,
                     isOnline: state?.connection_status !== 'offline'
                 };
             });
-    }, [searchQuery, trackerLabels, trackerStates]);
+    }, [searchQuery, trackerLabels, trackerStates, allTrackerIds]);
 
     // Get status styling
     const getStatusStyle = (status: string) => {

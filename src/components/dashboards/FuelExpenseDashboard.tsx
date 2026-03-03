@@ -58,6 +58,11 @@ export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
                     const m = String(now.getMonth() + 1).padStart(2, '0');
                     const startOfMonth = `${y}-${m}-01`;
                     windowData = windowData.filter((d: any) => String(d.date) >= startOfMonth);
+                } else if (dateFilter === "30 days" && Array.isArray(windowData)) {
+                    // Strip leading zero-value entries (e.g. ZM backend returning Jan 31 with zeros)
+                    while (windowData.length > 0 && Number(windowData[0]?.motion_usd ?? 0) === 0 && Number(windowData[0]?.idle_usd ?? 0) === 0) {
+                        windowData = windowData.slice(1);
+                    }
                 }
 
                 const processed: FuelExpensePoint[] = Array.isArray(windowData)

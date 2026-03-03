@@ -1,15 +1,11 @@
-import { GitFork } from "lucide-react";
+import RouteManager from '@/components/maps/RouteManager';
 
 export function RouteMaster() {
     return (
-        <div className="h-full p-6 flex flex-col items-center justify-center text-center">
-            <div className="bg-purple-50 dark:bg-purple-500/10 p-6 rounded-full mb-4">
-                <GitFork className="h-12 w-12 text-purple-600 dark:text-purple-500" />
+        <div className="flex flex-1 flex-col h-full w-full overflow-hidden px-6 pt-8 pb-3 bg-background">
+            <div className="flex-1 h-full w-full rounded-[24px] overflow-hidden shadow-lg border border-border relative bg-surface-card">
+                <RouteManager />
             </div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Route Master</h2>
-            <p className="text-muted-foreground max-w-md">
-                Route planning and optimization tools coming soon.
-            </p>
         </div>
     );
 }

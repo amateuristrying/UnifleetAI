@@ -19,6 +19,9 @@ import LiveFleet from "./pages/ops/LiveFleet"
 import LiveSpeed from "./pages/ops/LiveSpeed"
 import CorridorAnalytics from "./pages/ops/CorridorAnalytics"
 import { TurnaroundTime } from "./pages/TurnaroundTime"
+import AnalyticsDashboard from "./pages/analytics/AnalyticsDashboard"
+import NightEvents from "./pages/analytics/NightEvents"
+import NightSpeeding from "./pages/analytics/NightSpeeding"
 
 export default function App() {
   return (
@@ -61,6 +64,9 @@ function Layout() {
           <Route path="/live-geofences" element={<LiveGeofences />} />
           <Route path="/live-speed" element={<LiveSpeed />} />
           <Route path="/live-fleet" element={<LiveFleet />} />
+          <Route path="/analytics" element={<AnalyticsDashboard />} />
+          <Route path="/analytics/unsupervised-night-events" element={<NightEvents />} />
+          <Route path="/analytics/night-speeding" element={<NightSpeeding />} />
           <Route path="/corridor-analytics" element={<CorridorAnalytics />} />
           <Route path="/turnaround-time" element={<TurnaroundTime />} />
           <Route path="/compliance" element={<CompliancePage />} />

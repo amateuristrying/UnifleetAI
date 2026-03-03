@@ -82,12 +82,17 @@
   }
 
   html,
-  body,
-  #root {
+  body {
     height: 100%;
     margin: 0;
     padding: 0;
     overflow: hidden;
+  }
+
+  /* overflow:clip (not hidden) so position:fixed popovers are never clipped */
+  #root {
+    height: 100%;
+    overflow: clip;
   }
 
   body {

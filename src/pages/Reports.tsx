@@ -21,6 +21,7 @@ import {
     Info,
     Truck,
     List,
+    Smartphone,
     type LucideIcon,
 } from "lucide-react";
 import { NavixyService } from "../services/navixy";
@@ -73,6 +74,16 @@ const REPORT_TYPES: ReportDef[] = [
         hasTimeframe: false,
         hasApi: true,
         description: "A comprehensive list of all geofences including serial number, name, and shape details. Download directly as CSV.",
+    },
+    {
+        id: "tracker-list",
+        title: "All Tracker List",
+        icon: Smartphone,
+        color: "bg-violet-500/10 dark:bg-violet-500/20",
+        iconColor: "text-violet-600 dark:text-violet-400",
+        hasTimeframe: false,
+        hasApi: true,
+        description: "A complete list of every single tracker/vehicle registered to the current Operations API key. Includes ID, Name, Model, and other core configuration details. Useful for full fleet audits.",
     },
     {
         id: "night-drivers",
@@ -186,7 +197,7 @@ type TfFuel = (typeof TF_FUEL)[number];
 
 const getTimeframeOptions = (reportId: string): readonly string[] => {
     if (reportId === "fuel-expense") return TF_FUEL;
-    if (reportId === "geofence-report" || reportId === "inactive-trackers") return [];
+    if (reportId === "geofence-report" || reportId === "inactive-trackers" || reportId === "tracker-list") return [];
     return TF_ALL;
 };
 
@@ -258,9 +269,17 @@ export function Reports() {
                 const json = await res.json();
 
                 let rows: any[] = [];
-                if (Array.isArray(json?.data)) rows = json.data;
-                else if (json?.data && typeof json.data === "object") {
-                    rows = json.data.last30days || json.data.latest || Object.values(json.data).flat();
+                if (ops === "tanzania" && json?.downloadUrl) {
+                    // TZ ops: fetch from pre-signed S3 URL
+                    try {
+                        const fileRes = await fetch(json.downloadUrl);
+                        if (fileRes.ok) rows = await fileRes.json();
+                    } catch { /* silent */ }
+                } else {
+                    if (Array.isArray(json?.data)) rows = json.data;
+                    else if (json?.data && typeof json.data === "object") {
+                        rows = json.data.last30days || json.data.latest || Object.values(json.data).flat();
+                    }
                 }
 
                 const names = rows
@@ -345,6 +364,9 @@ export function Reports() {
                 case "above-average":
                     await dlAboveAvg(tf as TfAll);
                     break;
+                case "tracker-list":
+                    await dlTrackerList();
+                    break;
             }
         } catch (err) {
             console.error("Download failed:", err);
@@ -367,10 +389,23 @@ export function Reports() {
 
         const json = await res.json();
         let rows: any[] = [];
-        if (Array.isArray(json?.data)) rows = json.data;
-        else if (json?.data && typeof json.data === "object") {
-            rows = json.data[period] || json.data.latest || [];
+
+        if (ops === "tanzania" && json?.downloadUrl) {
+            // TZ ops: Lambda returns a pre-signed S3 URL instead of inline data
+            const fileRes = await fetch(json.downloadUrl);
+            if (!fileRes.ok) {
+                alert("Failed to fetch dataset from S3.");
+                return;
+            }
+            rows = await fileRes.json();
+        } else {
+            // ZM ops (or legacy TZ): data comes inline in the response
+            if (Array.isArray(json?.data)) rows = json.data;
+            else if (json?.data && typeof json.data === "object") {
+                rows = json.data[period] || json.data.latest || [];
+            }
         }
+
         if (!rows?.length) return alert("No Fleet Performance data.");
 
         rows = filterByVehicle(rows);
@@ -412,31 +447,23 @@ export function Reports() {
         if (!base) throw new Error("API not configured");
 
         const endpoint = /\/night-driving$/.test(base) ? base : `${base}/night-driving`;
-        const win = nightWindow(tf);
-        const url = `${endpoint}?period=${win}&_t=${Date.now()}`;
+        const winParam = tf === "1 day" ? "1d" : tf === "7 days" ? "7d" : "30d";
+        const url = `${endpoint}?window=${winParam}&_t=${Date.now()}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
 
-        const payload = json?.results ?? json ?? {};
-        const periodKeys = win === "1d"
-            ? ["last_1_day", "latest", "1d", "day"]
-            : win === "7d"
-                ? ["last_7_days", "last7days", "7d", "week"]
-                : ["last_30_days", "last30days", "30d", "month"];
-
-        let bucket: any = null;
-        for (const k of periodKeys) {
-            if (payload?.[k]) { bucket = payload[k]; break; }
+        // Check window warning
+        if (json?.window && json.window !== "latest" && json.window !== winParam && json.window !== `${winParam}d`) {
+            console.warn(`[NightDrivers] API returned window ${json.window} but requested ${winParam}`);
         }
-        if (!bucket && (Array.isArray(payload?.ranks) || Array.isArray(payload?.daily_totals))) bucket = payload;
-        if (!bucket && typeof payload === "object" && payload?.window) bucket = payload;
+
+        const payload = json?.results ?? json ?? {};
 
         const ranks: any[] =
-            (Array.isArray(bucket?.ranks) && bucket.ranks) ||
-            (Array.isArray(payload?.ranks) && payload.ranks) ||
-            (Array.isArray(payload?.data) && payload.data) ||
-            [];
+            Array.isArray(payload?.ranks) ? payload.ranks :
+                Array.isArray(payload?.data) ? payload.data :
+                    [];
 
         if (!ranks.length) return alert("No Night Drivers data.");
 
@@ -450,7 +477,7 @@ export function Reports() {
         if (!rows.length) return alert("No data for the selected vehicle.");
 
         const csv = Papa.unparse(rows);
-        downloadBlob(csv, `NightDrivers_${ops}_${win}_${new Date().toISOString().slice(0, 10)}.csv`);
+        downloadBlob(csv, `NightDrivers_${ops}_${winParam}_${new Date().toISOString().slice(0, 10)}.csv`);
     };
 
     const dlSpeedViolators = async (tf: TfAll) => {
@@ -680,6 +707,41 @@ export function Reports() {
         }
     };
 
+    /* ── Tracker List Download (Direct API) ── */
+    const dlTrackerList = async () => {
+        const SESSION_KEYS = {
+            zambia: import.meta.env.VITE_NAVIXY_SESSION_KEY_ZM,
+            tanzania: import.meta.env.VITE_NAVIXY_SESSION_KEY_TZ,
+        };
+        const sessionKey = SESSION_KEYS[ops as keyof typeof SESSION_KEYS];
+
+        if (!sessionKey) return alert("Session key configuration missing for " + ops);
+
+        try {
+            const trackers = await NavixyService.listTrackers(sessionKey);
+            if (!trackers || !trackers.length) return alert("No trackers found for this API Key.");
+
+            const rows = trackers.map((t: any, index: number) => {
+                return {
+                    "Sr No": index + 1,
+                    "Tracker ID": t.id,
+                    "Name": t.label || t.name || "",
+                    "Brand / Type": t.source?.vehicle_type_id || "Unknown",
+                    "Sim. Number": t.source?.phone || "",
+                    "Device Model": t.source?.model || "",
+                    "Created At": t.source?.creation_date || "",
+                    "Clone": t.clone ? "Yes" : "No"
+                };
+            });
+
+            const csv = Papa.unparse(rows);
+            downloadBlob(csv, `All_Trackers_${ops}_${new Date().toISOString().slice(0, 10)}.csv`);
+        } catch (err) {
+            console.error("Failed to fetch tracker list:", err);
+            alert("Failed to download tracker list.");
+        }
+    };
+
     /* ──────────── Can Download? ──────────── */
 
     const canDownload = useMemo(() => {
@@ -765,6 +827,11 @@ export function Reports() {
                                         onClick={() => {
                                             if (report.id === 'geofence-list') {
                                                 handleDownloadGeofenceList();
+                                            } else if (report.id === 'tracker-list') {
+                                                if (!downloading) {
+                                                    setDownloading(true);
+                                                    dlTrackerList().finally(() => setDownloading(false));
+                                                }
                                             } else {
                                                 openReport(report);
                                             }
@@ -793,9 +860,9 @@ export function Reports() {
                                         {/* Description + Chevron/Download Row */}
                                         <div className="w-full pl-1 flex items-center justify-between mt-1">
                                             <p className="text-xs text-muted-foreground truncate flex-1">
-                                                {report.id === 'geofence-list' ? "Click to download directly" : (report.hasApi ? "Click to download" : "Coming soon")}
+                                                {(report.id === 'geofence-list' || report.id === 'tracker-list') ? "Click to download directly" : (report.hasApi ? "Click to download" : "Coming soon")}
                                             </p>
-                                            {report.id === 'geofence-list' ? (
+                                            {(report.id === 'geofence-list' || report.id === 'tracker-list') ? (
                                                 <Download
                                                     size={18}
                                                     className={cn(

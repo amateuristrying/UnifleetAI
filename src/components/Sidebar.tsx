@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
-import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, TrendingUp, Timer, Activity, Truck, Trophy, Gauge } from "lucide-react";
+import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, Activity, LineChart, Gauge } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { MarqueeText } from "./ui/MarqueeText";
@@ -99,19 +99,11 @@ export function Sidebar() {
                 />
 
                 <SidebarItem
-                    icon={<TrendingUp className="h-5 w-5" />}
-                    label="Corridor Analytics"
+                    icon={<LineChart className="h-5 w-5" />}
+                    label="Analytics"
                     isExpanded={isExpanded}
-                    isActive={isActive('/corridor-analytics')}
-                    onClick={() => handleNavigation('/corridor-analytics')}
-                />
-
-                <SidebarItem
-                    icon={<Timer className="h-5 w-5" />}
-                    label="Turnaround Time"
-                    isExpanded={isExpanded}
-                    isActive={isActive('/turnaround-time')}
-                    onClick={() => handleNavigation('/turnaround-time')}
+                    isActive={isActive('/analytics')}
+                    onClick={() => handleNavigation('/analytics')}
                 />
 
                 <SidebarItem
@@ -120,22 +112,6 @@ export function Sidebar() {
                     isExpanded={isExpanded}
                     isActive={isActive('/fleet-pulse')}
                     onClick={() => handleNavigation('/fleet-pulse')}
-                />
-
-                <SidebarItem
-                    icon={<Truck className="h-5 w-5" />}
-                    label="Vehicles"
-                    isExpanded={isExpanded}
-                    isActive={isActive('/vehicle') && !isActive('/vehicle/driver-score')} // Exclude driver score as it has its own icon
-                    onClick={() => handleNavigation('/vehicle')}
-                />
-
-                <SidebarItem
-                    icon={<Trophy className="h-5 w-5" />}
-                    label="Driver Scoreboard"
-                    isExpanded={isExpanded}
-                    isActive={isActive('/vehicle/driver-score')}
-                    onClick={() => handleNavigation('/vehicle/driver-score')}
                 />
 
             </nav>

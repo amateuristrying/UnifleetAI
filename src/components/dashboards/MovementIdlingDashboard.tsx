@@ -63,6 +63,11 @@ export const MovementIdlingDashboard: React.FC<MovementIdlingDashboardProps> = (
                     const m = String(now.getMonth() + 1).padStart(2, '0');
                     const startOfMonth = `${y}-${m}-01`;
                     series = series.filter((d: any) => d.date >= startOfMonth);
+                } else if (dateFilter === "30 days" && Array.isArray(series)) {
+                    // Strip leading zero-value entries (e.g. ZM backend returning Jan 31 with zeros)
+                    while (series.length > 0 && Number(series[0]?.totalIdling ?? 0) === 0 && Number(series[0]?.totalMovement ?? 0) === 0) {
+                        series = series.slice(1);
+                    }
                 }
                 setData(Array.isArray(series) ? series : []);
             } catch (e) {

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { KPIStats } from './KPIStats';
 import { BorderChart } from './BorderChart';
 import { TripCompletionModal } from './TripCompletionModal';
 import { subDays } from 'date-fns';
-import { RefreshCcw, Filter } from 'lucide-react';
+import { RefreshCcw, Filter, ArrowLeft } from 'lucide-react';
 
 export function TATDashboard() {
+    const navigate = useNavigate();
     const [dateRange, setDateRange] = useState({
         start: subDays(new Date(), 30),
         end: new Date()
@@ -102,7 +104,16 @@ export function TATDashboard() {
         <div className="flex flex-col gap-6 p-6 min-h-full bg-surface-main text-foreground animate-in fade-in duration-500">
             {/* Header Controls */}
             <div className="flex flex-wrap items-center justify-between gap-4">
-                <h1 className="text-2xl font-bold tracking-tight">Turnaround Time & Efficiency</h1>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/analytics')}
+                        className="p-2 rounded-xl bg-muted hover:bg-surface-raised border border-transparent hover:border-border text-muted-foreground hover:text-foreground transition-all flex items-center justify-center shrink-0"
+                        title="Back to Analytics"
+                    >
+                        <ArrowLeft size={18} />
+                    </button>
+                    <h1 className="text-2xl font-bold tracking-tight">Turnaround Time & Efficiency</h1>
+                </div>
 
                 <div className="flex items-center gap-2">
                     {/* Simple Date Range Picker (Mock for now, could be replaced with a real component) */}

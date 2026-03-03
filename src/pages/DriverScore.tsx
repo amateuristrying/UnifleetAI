@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { subDays, startOfDay, endOfDay } from "date-fns";
-import { Download, Loader2, Trophy } from "lucide-react";
+import { Download, Loader2, Trophy, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchDriverScoreData } from "@/services/driverScore";
 import { calculateDriverScores } from "@/services/scoringLogic";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 type TimeFilter = "today" | "7d" | "30d" | "all";
 
 export function DriverScore() {
+    const navigate = useNavigate();
     const [filter, setFilter] = useState<TimeFilter>("30d");
     const [scores, setScores] = useState<VehicleScore[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -70,14 +72,23 @@ export function DriverScore() {
         <div className="flex flex-col h-full bg-surface-main p-6 overflow-y-auto w-full">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Trophy className="h-6 w-6 text-primary" />
-                        Driver Scoreboard
-                    </h1>
-                    <p className="text-muted-foreground mt-1">
-                        Performance ranking based on safety, efficiency, and compliance.
-                    </p>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/analytics')}
+                        className="p-2 rounded-xl bg-muted hover:bg-surface-raised border border-transparent hover:border-border text-muted-foreground hover:text-foreground transition-all flex items-center justify-center shrink-0"
+                        title="Back to Analytics"
+                    >
+                        <ArrowLeft size={18} />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            <Trophy className="h-6 w-6 text-primary" />
+                            Driver Scoreboard
+                        </h1>
+                        <p className="text-muted-foreground mt-1">
+                            Performance ranking based on safety, efficiency, and compliance.
+                        </p>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-4">

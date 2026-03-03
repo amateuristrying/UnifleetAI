@@ -101,9 +101,8 @@ export function DailyAssetsActiveDashboard({
     const chartData = useMemo(() => smoothSeries(filteredData, 3), [filteredData]);
 
     const tableData = useMemo(() => {
-        const rows = dateFilter === '7 days' ? 7 : 15;
-        return filteredData.slice(-rows);
-    }, [filteredData, dateFilter]);
+        return chartData.slice(-8);
+    }, [chartData]);
 
     return (
         <div className="bg-surface-card rounded-[24px] shadow-lg border border-border p-6 mb-6 pdf-content">
@@ -156,20 +155,15 @@ export function DailyAssetsActiveDashboard({
                     {loading ? (
                         <p className="text-xs italic text-muted-foreground">Loading...</p>
                     ) : (
-                        <div className="text-xs space-y-1 max-h-[350px] overflow-y-auto">
-                            <div className="grid grid-cols-2 gap-2 font-bold border-b border-border pb-1 sticky top-0 bg-muted/30 backdrop-blur-sm">
+                        <div className="text-xs space-y-1">
+                            <div className="grid grid-cols-2 gap-2 font-bold border-b border-border pb-1">
                                 <span className="text-foreground">Date</span>
                                 <span className="text-foreground">Assets</span>
                             </div>
                             {tableData.map((item) => (
                                 <div
                                     key={item.date}
-                                    className={`grid grid-cols-2 gap-2 py-1.5 px-1 rounded ${item.status === 'critical'
-                                        ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                                        : item.status === 'warning'
-                                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
-                                            : 'bg-surface-card text-foreground'
-                                        }`}
+                                    className="grid grid-cols-2 gap-2 py-1.5 px-1 rounded bg-surface-card text-foreground"
                                 >
                                     <span className="text-foreground">{item.date}</span>
                                     <span className="font-medium text-foreground">{item.assets}</span>

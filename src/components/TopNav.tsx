@@ -14,9 +14,7 @@ import { CreateUserModal } from "./auth/CreateUserModal";
 import { useState } from "react";
 
 export function TopNav() {
-    const { resolved, setTheme } = useTheme();
-
-    // Auth Hooks
+    const { resolved, setTheme } = useTheme();    // Auth Hooks
     const { logout, checkPermission } = useAuth();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 

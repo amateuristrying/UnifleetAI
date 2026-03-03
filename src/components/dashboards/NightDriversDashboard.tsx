@@ -1,5 +1,5 @@
 // src/components/dashboards/NightDriversDashboard.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     BarChart, Bar, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, Legend
@@ -43,17 +43,9 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
     const [ranks, setRanks] = useState<Rank[]>([]);
     const [totals, setTotals] = useState<DailyTotal[]>([]);
     const [loading, setLoading] = useState(false);
+    const [dateRangeStr, setDateRangeStr] = useState({ start: "", end: "" });
 
     useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
-
-    const periodKeys = useMemo(() => {
-        switch (filter) {
-            case "1d": return ["last_1_day", "latest", "1d", "day"];
-            case "7d": return ["last_7_days", "last7days", "7d", "week"];
-            case "mtd": return ["mtd", "month_to_date"];
-            default: return ["last_30_days", "last30days", "30d", "month"];
-        }
-    }, [filter]);
 
     useEffect(() => {
         const run = async () => {
@@ -61,30 +53,28 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
             try {
                 const base = api(ops, "nightDriving").replace(/\/+$/, "");
                 const endpoint = /\/night-driving$/.test(base) ? base : `${base}/night-driving`;
-                const url = `${endpoint}?period=${filter}&window=${filter}`;
+                // The filter state values are exactly "1d", "7d", "30d", "mtd".
+                const winParam = filter;
+                const url = `${endpoint}?window=${winParam}&_t=${Date.now()}`;
 
-                const res = await fetch(url);
+                const res = await fetch(url, { cache: "no-store" });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
-                const payload = json?.results ?? json;
-                console.log('[NightDrivers] MTD Verification:', { window: json?.window ?? payload?.window, source: json?.source_key ?? payload?.source_key });
 
-                let bucket: Record<string, unknown> | undefined;
-                for (const k of periodKeys) {
-                    if (payload?.[k]) {
-                        bucket = payload[k];
-                        break;
-                    }
+                if (json?.window && json.window !== "latest" && json.window !== winParam && json.window !== `${winParam}d`) {
+                    console.warn(`[NightDrivers] API returned window ${json.window} but requested ${winParam}`);
                 }
-                if (!bucket && (Array.isArray(payload?.ranks) || Array.isArray(payload?.daily_totals))) bucket = payload;
 
-                const r: Rank[] = Array.isArray(bucket?.ranks) ? bucket.ranks as Rank[] : [];
+                setDateRangeStr({ start: json?.start_date || "", end: json?.end_date || "" });
+
+                const payload = json?.results ?? json;
+                const r: Rank[] = Array.isArray(payload?.ranks) ? payload.ranks as Rank[] : [];
                 setRanks(r);
 
-                let t: DailyTotal[] = Array.isArray(bucket?.daily_totals) ? bucket.daily_totals as DailyTotal[] : [];
+                let t: DailyTotal[] = Array.isArray(payload?.daily_totals) ? payload.daily_totals as DailyTotal[] : [];
                 if ((!t || t.length === 0) && r.length > 0) {
                     const sum = r.reduce((s, it) => s + (Number(it.night_driving_hours) || 0), 0);
-                    const anchor = (bucket?.anchor_date as string) || (json?.anchor_date as string) || new Date().toISOString().slice(0, 10);
+                    const anchor = (payload?.anchor_date as string) || (json?.anchor_date as string) || new Date().toISOString().slice(0, 10);
                     t = [{ date: String(anchor), total_night_hours: Number(sum.toFixed(2)) }];
                 }
                 // For MTD, ensure chart starts from 1st of current month
@@ -104,11 +94,11 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
             }
         };
         run();
-    }, [ops, filter, periodKeys]);
+    }, [ops, filter]);
 
     const onClickFilter = (p: Period) => {
         setFilter(p);
-        if (setDateFilter && (p === "1d" || p === "30d" || p === "mtd")) {
+        if (setDateFilter) {
             setDateFilter(periodToTf(p));
         }
     };
@@ -117,8 +107,15 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
         <div className="bg-surface-card rounded-[24px] shadow-lg border border-border p-6 mb-6 pdf-content">
             {/* Header/filter hidden in PDF */}
             <div data-pdf-hide="true" className="pdf-hide">
-                <div className="bg-muted text-foreground px-4 py-3 rounded-xl inline-block mb-6">
+                <div className="bg-muted text-foreground px-4 py-3 rounded-xl flex items-center gap-4 mb-6 w-fit">
                     <h3 className="text-lg font-bold uppercase tracking-wide">NIGHT DRIVERS ANALYSIS</h3>
+                    {dateRangeStr.start && dateRangeStr.end && (
+                        <div className="text-sm font-semibold text-muted-foreground bg-surface-main/40 px-3 py-1 rounded-md border border-border">
+                            {dateRangeStr.start === dateRangeStr.end
+                                ? dateRangeStr.start
+                                : `${dateRangeStr.start} – ${dateRangeStr.end}`}
+                        </div>
+                    )}
                 </div>
                 <div className="flex gap-2 mb-6">
                     {(["1d", "7d", "mtd", "30d"] as const).map(f => (
