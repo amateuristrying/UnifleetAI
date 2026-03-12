@@ -15,7 +15,6 @@ interface SpeedViolationsDashboardProps {
 
 interface ByDay {
     date: string;
-    minor: number;
     major: number;
     severe: number;
 }
@@ -24,7 +23,6 @@ interface Violator {
     vehicle: string;
     totalViolations: number;
     totalDurationHours: number;
-    minor: number;
     major: number;
     severe: number;
     maxSpeedKmph: number;
@@ -48,7 +46,6 @@ function coerceByDay(arr: unknown[]): ByDay[] {
         const r = row as Record<string, unknown>;
         return {
             date: fmtDayLabel(String(r.date ?? '')),
-            minor: Number(r.minor ?? r.minor_count ?? 0),
             major: Number(r.major ?? r.major_count ?? 0),
             severe: Number(r.severe ?? r.severe_count ?? 0),
         };
@@ -62,7 +59,6 @@ function coerceViolators(arr: unknown[]): Violator[] {
             vehicle: String(r.vehicle_number ?? r.vehicle ?? ''),
             totalViolations: Number(r.total_violations ?? r.totalViolations ?? 0),
             totalDurationHours: Number(r.total_duration_hours ?? r.totalDurationHours ?? 0),
-            minor: Number(r.minor ?? r.minor_count ?? 0),
             major: Number(r.major ?? r.major_count ?? 0),
             severe: Number(r.severe ?? r.severe_count ?? 0),
             maxSpeedKmph: Number(r.max_speed_kmph ?? r.maxSpeedKmph ?? 0),
@@ -170,7 +166,6 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
                             <YAxis stroke="hsl(var(--muted-foreground))" style={{ fontSize: '12px' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
-                            <Bar dataKey="minor" stackId="a" fill="#FCD34D" name="Minor" radius={[0, 0, 0, 0]} />
                             <Bar dataKey="major" stackId="a" fill="#F97316" name="Major" radius={[0, 0, 0, 0]} />
                             <Bar dataKey="severe" stackId="a" fill="#DC2626" name="Severe" radius={[4, 4, 0, 0]} />
                         </BarChart>
@@ -192,7 +187,6 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
                                 <tr className="border-b border-border">
                                     <th className="text-left py-2 px-3 font-semibold text-muted-foreground">Vehicle</th>
                                     <th className="text-right py-2 px-3 font-semibold text-muted-foreground">Total</th>
-                                    <th className="text-right py-2 px-3 font-semibold text-yellow-600 dark:text-yellow-500">Minor</th>
                                     <th className="text-right py-2 px-3 font-semibold text-orange-600 dark:text-orange-500">Major</th>
                                     <th className="text-right py-2 px-3 font-semibold text-red-600 dark:text-red-500">Severe</th>
                                     <th className="text-right py-2 px-3 font-semibold text-muted-foreground">Max Speed</th>
@@ -203,7 +197,6 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
                                     <tr key={i} className="border-b border-border hover:bg-muted/30 transition-colors">
                                         <td className="py-2 px-3 font-medium text-foreground">{v.vehicle}</td>
                                         <td className="py-2 px-3 text-right font-bold text-foreground">{v.totalViolations}</td>
-                                        <td className="py-2 px-3 text-right text-yellow-700 dark:text-yellow-400">{v.minor}</td>
                                         <td className="py-2 px-3 text-right text-orange-700 dark:text-orange-400">{v.major}</td>
                                         <td className="py-2 px-3 text-right text-red-700 dark:text-red-400">{v.severe}</td>
                                         <td className="py-2 px-3 text-right text-muted-foreground">{v.maxSpeedKmph} km/h</td>
