@@ -22,6 +22,117 @@ interface SpeedViolation {
     status: 'active' | 'recorded';
 }
 
+const EXCLUDED_TZ_VEHICLES = [
+    "BBD 3639 ZM SHACMAN",
+    "ACZ 9354 ZM HIACE TR",
+    "AIC 5213 ZM SHACMAN",
+    "AIC 5308 ZM SHACMAN",
+    "AIC 5313 ZM SHACMAN",
+    "AIC 5473 ZM SHACMAN",
+    "AIC 5484 ZM SHACMAN",
+    "AIC 5485 ZM SHACMAN",
+    "BBD 2934 ZM SCANIA",
+    "BBD 2938 ZM SCANIA",
+    "BBD 2940 ZM SCANIA",
+    "BBD 2944 ZM SCANIA",
+    "BBD 2946 ZM SCANIA",
+    "BBD 2949 ZM SCANIA",
+    "BBD 2950 ZM SCANIA",
+    "BBD 2952 ZM SCANIA",
+    "BBD 3390 ZM SHACMAN",
+    "BBD 3391 ZM SHACMAN",
+    "BBD 3393 ZM SHACMAN",
+    "BBD 3396 ZM SHACMAN",
+    "BBD 3398 ZM SHACMAN",
+    "BBD 3404 ZM SHACMAN",
+    "BBD 3406 ZM SHACMAN",
+    "BBD 3408 ZM SHACMAN",
+    "BBD 4524 ZM SHACMAN",
+    "BBD 4526 ZM SHACMAN",
+    "BBD 4527 ZM FB",
+    "BBD 4528 ZM FB",
+    "BBD 4529 ZM FB",
+    "BBD 4530 ZM SHACMAN",
+    "BBD 4532 ZM FB",
+    "BBD 4533 ZM FB",
+    "BBD 4534 ZM SHACMAN",
+    "BBD 4535 ZM SHACMAN",
+    "BBD 4536 ZM FB",
+    "BBD 4538 ZM FB",
+    "BBD 4590 ZM SCANIA",
+    "BBD 4595 ZM SCANIA",
+    "BBD 4596 ZM SCANIA",
+    "BBD 4598 ZM SCANIA",
+    "BBD 4600 ZM SCANIA",
+    "BBD 4601 ZM SCANIA",
+    "BBD 4602 ZM SCANIA",
+    "BBD 4603 ZM SCANIA",
+    "BBD 4604 ZM SCANIA",
+    "BCF 5671 ZM SHACMAN",
+    "BLD 6410 ZM (FOTON HORIZON)",
+    "BLD 6412 ZM ( FOTON HORIZON)",
+    "CAA 101 ZM HOWO",
+    "CAA 102 ZM HOWO",
+    "CAA 103 ZM HOWO",
+    "CAA 104 ZM HOWO",
+    "CAA 105 ZM HOWO",
+    "CAA 106 ZM HOWO",
+    "CAA 107 ZM HOWO",
+    "CAA 108 ZM HOWO",
+    "CAA 109 ZM HOWO",
+    "CAA 112 ZM HOWO",
+    "CAA 113 ZM HOWO",
+    "CAA 114 ZM HOWO",
+    "CAA 92 ZM HOWO",
+    "CAA 93 ZM HOWO",
+    "CAA 94 ZM HOWO",
+    "CAA 95 ZM",
+    "CAA 96 ZM HOWO",
+    "CAA 97 ZM HOWO",
+    "CAA 98 ZM HOWO",
+    "CAC 1566 ZM",
+    "CAC 3155 ZM SHACMAN",
+    "CAE 2051 ZM FB",
+    "CAE 2052 ZM FOTON",
+    "CAE 2052 ZM SHACMAN FB",
+    "CAE 2127 ZM FB",
+    "CAE 2131 ZM FB",
+    "CAE 2134 ZM SHACMAN  FB",
+    "CAE 2141 ZM  SHACMAN",
+    "CAE 2555 ZM FB",
+    "CAE 4179 ZM",
+    "CAE 4181 ZM RENAULT",
+    "CAE 4182 ZM RENAULT",
+    "CAE 4183 ZM RENAULT",
+    "CAE 4184 ZM RENAULT",
+    "CAE 4185 ZM",
+    "CAE 4185 ZM RENUALT",
+    "CAE 4201 ZM",
+    "CAF 2664 ZM SCANIA",
+    "CAF 2668 ZM SCANIA TR",
+    "CAF 2669 ZM SCANIA",
+    "CAF 2670 ZM SCANIA",
+    "CAF 2675 ZM",
+    "CAF 2685 ZM SCANIA",
+    "CAF 56 ZM SHACMAN",
+    "CAF 6306 ZM RENAULT",
+    "CAF 8039 ZM (MAN)",
+    "CAF 8043 ZM  (MAN)",
+    "CAF 8054 ZM (MAN)",
+    "CAF 9738 ZM (MAN)",
+    "CAF 9741 ZM MAN",
+    "CAF 9742 ZM [ MAN ]",
+    "CAF 9743 ZM (MAN)"
+];
+
+const normalizedExcludedTZ = new Set(
+    EXCLUDED_TZ_VEHICLES.map(v => v.replace(/\s+/g, ' ').trim().toLowerCase())
+);
+
+function isExcludedTZVehicle(name: string) {
+    return normalizedExcludedTZ.has(name.replace(/\s+/g, ' ').trim().toLowerCase());
+}
+
 export default function LiveSpeed() {
     const { ops, setOps } = useOps();
     const { checkPermission } = useAuth();
@@ -44,6 +155,7 @@ export default function LiveSpeed() {
     const [isCustomExport, setIsCustomExport] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [selectedViolationIds, setSelectedViolationIds] = useState<Set<number>>(new Set());
+    const [excludedMenuOpen, setExcludedMenuOpen] = useState(false);
 
     // 1. Fetch Tracker Labels
     useEffect(() => {
@@ -164,8 +276,12 @@ export default function LiveSpeed() {
     // Filter
     // Merged List
     const allViolations = useMemo(() => {
-        return [...activeViolations, ...violations];
-    }, [activeViolations, violations]);
+        const merged = [...activeViolations, ...violations];
+        if (region === 'TZ') {
+            return merged.filter(v => !isExcludedTZVehicle(v.vehicleName));
+        }
+        return merged;
+    }, [activeViolations, violations, region]);
 
     // Critical Count
     const criticalCount = useMemo(() => {
@@ -191,6 +307,24 @@ export default function LiveSpeed() {
     }, [allViolations, searchQuery, showCriticalOnly]);
 
     // Export
+    const handleDownloadExcluded = () => {
+        const csvContent = [
+            "Excluded Vehicle",
+            ...EXCLUDED_TZ_VEHICLES.map(v => `"${v}"`)
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `excluded_vehicles_tz_${new Date().toISOString()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setExcludedMenuOpen(false);
+    };
+
     const handleDownload = () => {
         const headers = ["Vehicle", "Status", "Start Time", "Duration", "Max Speed (km/h)", "Avg Speed (km/h)", "Location"];
 
@@ -295,15 +429,45 @@ export default function LiveSpeed() {
 
                 {/* Controls */}
                 <div className="flex items-center gap-4">
-                    {/* Search */}
-                    <div className="relative w-64 ring-0 focus-within:ring-2 ring-primary/20 rounded-xl transition-all">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                        <Input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search vehicles..."
-                            className="pl-9 h-10 rounded-xl bg-muted/50 border-input text-xs font-medium focus-visible:ring-0"
-                        />
+                    {/* Search Field & Exclusions */}
+                    <div className="flex flex-col gap-1.5 items-end">
+                        <div className="relative w-64 ring-0 focus-within:ring-2 ring-primary/20 rounded-xl transition-all">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                            <Input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search vehicles..."
+                                className="pl-9 h-10 rounded-xl bg-muted/50 border-input text-xs font-medium focus-visible:ring-0"
+                            />
+                        </div>
+                        {region === 'TZ' && (
+                            <div className="relative w-full flex justify-end">
+                                <button
+                                    className="text-[10px] font-bold text-muted-foreground hover:text-foreground hover:underline px-1 uppercase transition-colors"
+                                    onClick={() => setExcludedMenuOpen(!excludedMenuOpen)}
+                                >
+                                    Vehicles Excluded ({EXCLUDED_TZ_VEHICLES.length})
+                                </button>
+                                {excludedMenuOpen && (
+                                    <div className="absolute top-full right-0 mt-1 w-64 max-h-80 overflow-y-auto custom-scrollbar bg-surface-card border border-border rounded-xl shadow-xl z-50 p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="flex items-center justify-between px-2 pb-2 mb-1 border-b border-border/50 sticky top-0 bg-surface-card z-10">
+                                            <span className="text-[10px] font-black uppercase text-foreground">Excluded List</span>
+                                            <button
+                                                onClick={handleDownloadExcluded}
+                                                className="text-primary hover:underline text-[10px] font-bold uppercase transition-colors"
+                                            >
+                                                Download CSV
+                                            </button>
+                                        </div>
+                                        {EXCLUDED_TZ_VEHICLES.map((v, i) => (
+                                            <div key={i} className="px-2 py-1 text-xs text-muted-foreground truncate hover:bg-muted/50 rounded transition-colors" title={v}>
+                                                {v}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Ops Switch (Admin Only) */}
