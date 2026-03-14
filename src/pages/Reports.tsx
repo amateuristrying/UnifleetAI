@@ -435,8 +435,21 @@ export function Reports() {
         let rows = Array.isArray(data?.data) ? data.data : [];
         if (rows.length === 0) return alert("No geofence data available.");
 
+        // Apply TZ specific logic: remove dwell > 30 days and sort highest to lowest
+        if (ops === 'tanzania') {
+            rows = rows.filter((r: any) => {
+                const days = r.dwellDays != null ? Number(r.dwellDays) : (r.dwell_days != null ? Number(r.dwell_days) : null);
+                return days == null || days <= 30;
+            });
+            rows.sort((a: any, b: any) => {
+                const aDays = a.dwellDays != null ? Number(a.dwellDays) : (a.dwell_days != null ? Number(a.dwell_days) : -Infinity);
+                const bDays = b.dwellDays != null ? Number(b.dwellDays) : (b.dwell_days != null ? Number(b.dwell_days) : -Infinity);
+                return bDays - aDays;
+            });
+        }
+
         rows = filterByVehicle(rows);
-        if (!rows.length) return alert("No data for the selected vehicle.");
+        if (!rows.length) return alert("No data for the selected vehicle (or none under 30 days).");
 
         const csv = Papa.unparse(rows);
         downloadBlob(csv, `GeofenceReport_${ops}_${new Date().toISOString().slice(0, 10)}.csv`);
