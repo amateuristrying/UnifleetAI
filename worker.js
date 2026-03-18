@@ -13,7 +13,6 @@
  *   - tracker_registry      (upserted on first tracker list fetch)
  */
 
-import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 
