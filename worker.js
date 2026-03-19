@@ -386,6 +386,11 @@ class NavixyETLSocket {
     handleMessage(data) {
         stats.messagesReceived++;
 
+        // TEMP: log type only for first 5 messages
+        if (stats.messagesReceived <= 5) {
+            log.info('MSG TYPE:', data.type, '| EVENT:', data.event ?? 'none');
+        }
+
         // Subscription response
         if (data.type === 'response' && data.action === 'subscription/subscribe') {
             if (data.data?.state_batch?.success || data.data?.state_batch?.value) {
@@ -421,6 +426,11 @@ class NavixyETLSocket {
             if (stateData && trackerId) {
                 bufferState(trackerId, stateData, this.opsRegion);
             }
+        }
+
+        // Catch-all: buffer anything with tracker_id + gps
+        if (data.tracker_id && data.gps) {
+            bufferState(data.tracker_id, data, this.opsRegion);
         }
     }
 
