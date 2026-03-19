@@ -172,6 +172,12 @@ async function flushBuffers() {
 
         for (const [trackerId, { state }] of snapshot) {
             const stateObj = state.state || state;
+
+            // [TEMP DEBUG] Log first batch stateObj to inspect shape
+            if (stats.batchesWritten === 0) {
+                console.log('RAW STATE OBJ:', JSON.stringify(stateObj, null, 2));
+            }
+
             const sourceId = stateObj.source_id ?? null;
 
             const row = {
@@ -354,6 +360,11 @@ class NavixyETLSocket {
 
     handleMessage(data) {
         stats.messagesReceived++;
+
+        // [TEMP DEBUG] Log first 3 raw messages to inspect shape
+        if (stats.messagesReceived <= 3) {
+            console.log('RAW NAVIXY MESSAGE:', JSON.stringify(data, null, 2));
+        }
 
         // Subscription response
         if (data.type === 'response' && data.action === 'subscription/subscribe') {
