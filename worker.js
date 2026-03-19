@@ -147,6 +147,30 @@ async function fetchTrackerList(sessionKey, opsRegion) {
 // Populated by fetchTrackerList(), used by flushBuffers() to resolve names
 const trackerNameMap = new Map();
 
+// ─── Initial State Fetcher (HTTP API) ─────────────────────────────────────────
+
+async function fetchInitialStates(sessionKey, opsRegion) {
+    try {
+        const url = `${CONFIG.navixy.apiUrl}/tracker/list/batch_states?hash=${sessionKey}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data.success || !data.states) {
+            log.warn(`Could not fetch initial states for ${opsRegion}`);
+            return;
+        }
+        let count = 0;
+        for (const [trackerId, stateData] of Object.entries(data.states)) {
+            if (stateData && typeof stateData === 'object') {
+                bufferState(Number(trackerId), stateData, opsRegion);
+                count++;
+            }
+        }
+        log.info(`📥 Buffered initial states for ${count} trackers (${opsRegion})`);
+    } catch (err) {
+        log.error(`Initial state fetch failed (${opsRegion}):`, err.message);
+    }
+}
+
 // ─── State Buffer & Flusher ──────────────────────────────────────────────────
 
 /** @type {Map<string, Map<number, {state: any, opsRegion: string}>>} */
@@ -492,6 +516,9 @@ async function main() {
 
         // Fetch and register trackers
         await fetchTrackerList(sessionKey, region);
+
+        // Fetch initial states via HTTP API (reliable tracker_ids)
+        await fetchInitialStates(sessionKey, region);
 
         // Start WebSocket
         const socket = new NavixyETLSocket(sessionKey, region);
