@@ -405,18 +405,29 @@ class NavixyETLSocket {
 
         // Real-time state_batch event
         if (data.type === 'event' && data.event === 'state_batch') {
-            const items = Array.isArray(data.data) ? data.data : [data.data];
-
-            for (const item of items) {
-                const trackerId = item.tracker_id;
-                const stateData = item.state || item;
-                stateData.source_id = item.source_id ?? item.state?.source_id ?? null;
-                if (stateData && trackerId) {
-                    bufferState(trackerId, stateData, this.opsRegion);
-                }
+            // Log structure of first event only
+            if (stats.messagesReceived <= 5) {
+                log.info('DATA.DATA TYPE:', typeof data.data, '| IS ARRAY:', Array.isArray(data.data));
+                log.info('DATA.DATA SAMPLE:', JSON.stringify(data.data).substring(0, 300));
             }
 
-            log.debug(`Buffered ${items.length} states for ${this.opsRegion}`);
+            // Handle both array and object/map formats
+            if (Array.isArray(data.data)) {
+                for (const item of data.data) {
+                    const trackerId = item.tracker_id;
+                    const stateData = item.state || item;
+                    if (stateData && trackerId) {
+                        bufferState(trackerId, stateData, this.opsRegion);
+                    }
+                }
+            } else if (data.data && typeof data.data === 'object') {
+                // It's a map of trackerId → stateData
+                for (const [trackerId, stateData] of Object.entries(data.data)) {
+                    if (stateData && typeof stateData === 'object') {
+                        bufferState(Number(trackerId), stateData, this.opsRegion);
+                    }
+                }
+            }
         }
 
         // Also handle source_state_event format (what Navixy actually sends live)
