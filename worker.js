@@ -179,12 +179,6 @@ async function flushBuffers() {
 
         for (const [trackerId, { state }] of snapshot) {
             const stateObj = state.state || state;
-
-            // [TEMP DEBUG] Log first batch stateObj to inspect shape
-            if (stats.batchesWritten === 0) {
-                console.log('RAW STATE OBJ:', JSON.stringify(stateObj, null, 2));
-            }
-
             const sourceId = stateObj.source_id ?? null;
 
             const row = {
@@ -368,24 +362,12 @@ class NavixyETLSocket {
     handleMessage(data) {
         stats.messagesReceived++;
 
-        // [TEMP DEBUG] Log first 3 raw messages to inspect shape
-        if (stats.messagesReceived <= 3) {
-            console.log('RAW NAVIXY MESSAGE:', JSON.stringify(data, null, 2));
-        }
-
         // Subscription response
         if (data.type === 'response' && data.action === 'subscription/subscribe') {
             if (data.data?.state_batch?.success || data.data?.state_batch?.value) {
-                log.success(`Subscription confirmed for ${this.opsRegion}`);
-
-                // If initial value map is provided, process it immediately
-                if (data.data?.state_batch?.value) {
-                    const valueMap = data.data.state_batch.value;
-                    for (const [trackerId, stateData] of Object.entries(valueMap)) {
-                        bufferState(Number(trackerId), stateData, this.opsRegion);
-                    }
-                    log.info(`📥 Received initial state for ${Object.keys(valueMap).length} trackers (${this.opsRegion})`);
-                }
+                // Skip initial valueMap — keys may be source_ids not tracker_ids.
+                // Live events will populate everything within seconds.
+                log.info(`📥 Subscription confirmed, live updates starting for ${this.opsRegion}`);
             } else {
                 log.warn(`Subscription failed for ${this.opsRegion}:`, JSON.stringify(data));
             }
@@ -482,6 +464,17 @@ async function main() {
     // Start flush interval
     const flushInterval = setInterval(flushBuffers, CONFIG.batchIntervalMs);
     log.info(`Batch flush interval: ${CONFIG.batchIntervalMs}ms`);
+
+    // Delete telemetry older than 48 hours — runs every hour
+    setInterval(async () => {
+        const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+        const { error } = await supabase
+            .from('vehicle_telemetry')
+            .delete()
+            .lt('ingested_at', cutoff);
+        if (error) log.error('Cleanup error:', error.message);
+        else log.info('🧹 Telemetry cleanup complete');
+    }, 60 * 60 * 1000);
 
     // Connect each ops region
     for (const [region, sessionKey] of Object.entries(CONFIG.navixy.sessions)) {
