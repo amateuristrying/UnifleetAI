@@ -106,8 +106,11 @@ async function fetchTrackerList(sessionKey, opsRegion) {
         const trackers = data.list;
         log.info(`📋 Fetched ${trackers.length} trackers for ${opsRegion}`);
 
-        // Populate trackerNameMap for name resolution in flushBuffers
-        trackers.forEach(t => trackerNameMap.set(t.id, t.label));
+        // Populate trackerNameMap and sourceIdToTrackerIdMap for resolution
+        trackers.forEach(t => {
+            trackerNameMap.set(t.id, t.label);
+            if (t.source?.id) sourceIdToTrackerIdMap.set(t.source.id, t.id);
+        });
 
         // Upsert into tracker_registry
         const records = trackers.map(t => ({
@@ -146,6 +149,7 @@ async function fetchTrackerList(sessionKey, opsRegion) {
 // ─── Tracker Name Map ────────────────────────────────────────────────────────
 // Populated by fetchTrackerList(), used by flushBuffers() to resolve names
 const trackerNameMap = new Map();
+const sourceIdToTrackerIdMap = new Map();
 
 // ─── Initial State Fetcher (HTTP API) ─────────────────────────────────────────
 
@@ -386,11 +390,6 @@ class NavixyETLSocket {
     handleMessage(data) {
         stats.messagesReceived++;
 
-        // TEMP: log type only for first 5 messages
-        if (stats.messagesReceived <= 5) {
-            log.info('MSG TYPE:', data.type, '| EVENT:', data.event ?? 'none');
-        }
-
         // Subscription response
         if (data.type === 'response' && data.action === 'subscription/subscribe') {
             if (data.data?.state_batch?.success || data.data?.state_batch?.value) {
@@ -405,16 +404,11 @@ class NavixyETLSocket {
 
         // Real-time state_batch event
         if (data.type === 'event' && data.event === 'state_batch') {
-            // Log structure of first event only
-            if (stats.messagesReceived <= 5) {
-                log.info('DATA.DATA TYPE:', typeof data.data, '| IS ARRAY:', Array.isArray(data.data));
-                log.info('DATA.DATA SAMPLE:', JSON.stringify(data.data).substring(0, 300));
-            }
-
             // Handle both array and object/map formats
             if (Array.isArray(data.data)) {
                 for (const item of data.data) {
-                    const trackerId = item.tracker_id;
+                    const sourceId = item.state?.source_id;
+                    const trackerId = sourceIdToTrackerIdMap.get(sourceId);
                     const stateData = item.state || item;
                     if (stateData && trackerId) {
                         bufferState(trackerId, stateData, this.opsRegion);
