@@ -413,6 +413,15 @@ class NavixyETLSocket {
 
             log.debug(`Buffered ${items.length} states for ${this.opsRegion}`);
         }
+
+        // Also handle source_state_event format (what Navixy actually sends live)
+        if (data.type === 'source_state_event') {
+            const trackerId = data.tracker_id;
+            const stateData = data.state || data;
+            if (stateData && trackerId) {
+                bufferState(trackerId, stateData, this.opsRegion);
+            }
+        }
     }
 
     startHeartbeat() {
