@@ -106,6 +106,9 @@ async function fetchTrackerList(sessionKey, opsRegion) {
         const trackers = data.list;
         log.info(`📋 Fetched ${trackers.length} trackers for ${opsRegion}`);
 
+        // Populate trackerNameMap for name resolution in flushBuffers
+        trackers.forEach(t => trackerNameMap.set(t.id, t.label));
+
         // Upsert into tracker_registry
         const records = trackers.map(t => ({
             tracker_id: t.id,
@@ -139,6 +142,10 @@ async function fetchTrackerList(sessionKey, opsRegion) {
         return [];
     }
 }
+
+// ─── Tracker Name Map ────────────────────────────────────────────────────────
+// Populated by fetchTrackerList(), used by flushBuffers() to resolve names
+const trackerNameMap = new Map();
 
 // ─── State Buffer & Flusher ──────────────────────────────────────────────────
 
@@ -183,16 +190,16 @@ async function flushBuffers() {
             const row = {
                 tracker_id: trackerId,
                 source_id: sourceId,
-                tracker_name: stateObj.label || stateObj.tracker_name || null,
+                tracker_name: trackerNameMap.get(trackerId) ?? null,
                 ops_region: opsRegion,
                 lat: stateObj.gps?.location?.lat ?? stateObj.lat ?? null,
                 lng: stateObj.gps?.location?.lng ?? stateObj.lng ?? null,
-                speed: stateObj.gps?.speed ?? stateObj.speed ?? 0,
-                heading: stateObj.gps?.heading ?? stateObj.heading ?? 0,
+                speed: parseFloat(stateObj.gps?.speed ?? stateObj.speed ?? 0),
+                heading: parseFloat(stateObj.gps?.heading ?? stateObj.heading ?? 0),
                 connection_status: stateObj.connection_status ?? 'unknown',
                 movement_status: stateObj.movement_status ?? 'unknown',
                 ignition: stateObj.inputs?.[0] ?? stateObj.ignition ?? false,
-                battery_level: stateObj.battery_level ?? 0,
+                battery_level: parseFloat(stateObj.battery_level ?? 0),
                 gps_updated: stateObj.gps?.updated ?? stateObj.gps_updated ?? null,
                 last_update: stateObj.last_update ?? null,
             };
@@ -390,8 +397,9 @@ class NavixyETLSocket {
             const items = Array.isArray(data.data) ? data.data : [data.data];
 
             for (const item of items) {
+                const trackerId = item.tracker_id;
                 const stateData = item.state || item;
-                const trackerId = stateData.tracker_id || stateData.source_id;
+                stateData.source_id = item.source_id ?? item.state?.source_id ?? null;
                 if (stateData && trackerId) {
                     bufferState(trackerId, stateData, this.opsRegion);
                 }
