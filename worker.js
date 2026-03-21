@@ -513,15 +513,21 @@ async function main() {
     const flushInterval = setInterval(flushBuffers, CONFIG.batchIntervalMs);
     log.info(`Batch flush interval: ${CONFIG.batchIntervalMs}ms`);
 
-    // Delete telemetry older than 48 hours — runs every hour
+    // Delete telemetry older than 24 hours — runs every hour
     setInterval(async () => {
-        const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-        const { error } = await supabase
-            .from('vehicle_telemetry')
-            .delete()
-            .lt('ingested_at', cutoff);
-        if (error) log.error('Cleanup error:', error.message);
-        else log.info('🧹 Telemetry cleanup complete');
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        // Delete in batches of 10,000 to avoid long locks
+        let deleted = 0;
+        do {
+            const { count, error } = await supabase
+                .from('vehicle_telemetry')
+                .delete({ count: 'exact' })
+                .lt('ingested_at', cutoff)
+                .limit(10000);
+            if (error) { log.error('Cleanup error:', error.message); break; }
+            deleted = count ?? 0;
+        } while (deleted === 10000);
+        log.info('🧹 Telemetry cleanup complete');
     }, 60 * 60 * 1000);
 
     // Connect each ops region
