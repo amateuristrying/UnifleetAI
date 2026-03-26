@@ -29,11 +29,7 @@ export const GeofenceDashboard: React.FC<GeofenceDashboardProps> = ({ onLoadingC
         setLoading(true);
         setErr(null);
         try {
-            const base = api(ops, "geofjson")?.replace(/\/+$/, "");
-            if (!base) {
-                setRows([]);
-                return;
-            }
+            const base = api(ops, "geofjson");
             const url = `${base}?limit=50&_t=${Date.now()}`;
 
             const res = await fetch(url, { cache: "no-store" });
@@ -41,21 +37,14 @@ export const GeofenceDashboard: React.FC<GeofenceDashboardProps> = ({ onLoadingC
             const data = await res.json();
 
             const rawData = Array.isArray(data?.data) ? data.data : [];
-            let parsedRows = rawData.map((r: Record<string, unknown>) => ({
+            setRows(rawData.map((r: Record<string, unknown>) => ({
                 vehicleNumber: String(r.vehicleNumber ?? r.vehicle_number ?? ''),
                 currentGeofence: String(r.currentGeofence ?? r.current_geofence ?? ''),
                 entryDatetime: String(r.entryDatetime ?? r.entry_datetime ?? ''),
                 exitDatetime: String(r.exitDatetime ?? r.exit_datetime ?? ''),
                 dwellHours: r.dwellHours != null ? Number(r.dwellHours) : (r.dwell_hours != null ? Number(r.dwell_hours) : null),
                 dwellDays: r.dwellDays != null ? Number(r.dwellDays) : (r.dwell_days != null ? Number(r.dwell_days) : null),
-            }));
-
-            // Filter out dwell days > 30 only for TZ ops
-            if (ops === 'tanzania') {
-                parsedRows = parsedRows.filter((r: GeofenceRow) => r.dwellDays == null || r.dwellDays <= 30);
-            }
-
-            setRows(parsedRows);
+            })));
         } catch (e: unknown) {
             console.error("[geofence] fetch failed", e);
             setErr((e as Error)?.message || "Failed to fetch");
@@ -71,7 +60,7 @@ export const GeofenceDashboard: React.FC<GeofenceDashboardProps> = ({ onLoadingC
 
     const top10 = useMemo(() => {
         const copy = [...rows];
-        copy.sort((a, b) => (b.dwellDays ?? -Infinity) - (a.dwellDays ?? -Infinity));
+        copy.sort((a, b) => (b.dwellHours ?? -Infinity) - (a.dwellHours ?? -Infinity));
         return copy.slice(0, 10);
     }, [rows]);
 

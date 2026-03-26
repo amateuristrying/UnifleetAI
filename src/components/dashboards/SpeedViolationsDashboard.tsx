@@ -82,24 +82,25 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
         const load = async () => {
             setLoading(true);
             try {
-                const base = api(ops, 'speedViolations')?.replace(/\/+$/, '');
-                if (!base) {
-                    setByDay([]);
-                    setViolators([]);
-                    return;
-                }
+                const base = api(ops, 'speedViolations');
 
                 const windowVal = WINDOW_MAP[dateFilter] ?? '30d';
-                let url = `${base}?window=${windowVal}&limit=15`;
+                let url = `${base}?window=${windowVal}&limit=15&_t=${Date.now()}`;
 
-                let res = await fetch(url);
-                let raw = await res.json();
+                let res = await fetch(url, { cache: 'no-store' });
+                let raw: any;
+
+                if (res.ok) {
+                    raw = await res.json();
+                } else {
+                    raw = null;
+                }
 
                 // If MTD not supported by this backend, fallback to 30d
                 if (windowVal === 'mtd' && (!res.ok || raw?.message || raw?.error)) {
                     console.warn('[SpeedViolations] MTD not available, falling back to 30d');
-                    url = `${base}?window=30d&limit=15`;
-                    res = await fetch(url);
+                    url = `${base}?window=30d&limit=15&_t=${Date.now()}`;
+                    res = await fetch(url, { cache: 'no-store' });
                     raw = await res.json();
                 }
 

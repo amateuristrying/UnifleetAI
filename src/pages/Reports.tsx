@@ -190,12 +190,15 @@ const REPORT_TYPES: ReportDef[] = [
 /* ────────────── Timeframe Constants ────────────── */
 
 const TF_ALL = ["30 days", "7 days", "1 day"] as const;
+const TF_FLEET = ["MTD", "30 days", "7 days", "1 day"] as const;
 const TF_FUEL = ["30 days", "7 days", "1 day"] as const;
 
 type TfAll = (typeof TF_ALL)[number];
+type TfFleet = (typeof TF_FLEET)[number];
 type TfFuel = (typeof TF_FUEL)[number];
 
 const getTimeframeOptions = (reportId: string): readonly string[] => {
+    if (reportId === "fleet-performance") return TF_FLEET;
     if (reportId === "fuel-expense") return TF_FUEL;
     if (reportId === "geofence-report" || reportId === "inactive-trackers" || reportId === "tracker-list") return [];
     return TF_ALL;
@@ -204,7 +207,9 @@ const getTimeframeOptions = (reportId: string): readonly string[] => {
 /* ────────────── API Param Mappers ────────────── */
 
 const fleetPerfPeriod = (tf?: string) =>
-    (tf === "1 day") ? "latest" : tf === "7 days" ? "last7days" : "last30days";
+    tf === "MTD" ? "mtd" :
+        tf === "1 day" ? "latest" :
+            tf === "7 days" ? "last7days" : "last30days";
 
 const nightWindow = (tf?: string) =>
     (tf === "1 day") ? "1d" : tf === "7 days" ? "7d" : "30d";
@@ -344,7 +349,7 @@ export function Reports() {
         try {
             switch (id) {
                 case "fleet-performance":
-                    await dlFleetPerformance(tf as TfAll);
+                    await dlFleetPerformance(tf as TfFleet);
                     break;
                 case "geofence-report":
                     await dlGeofence();
@@ -378,20 +383,30 @@ export function Reports() {
 
     /* ── Individual download handlers ── */
 
-    const dlFleetPerformance = async (tf: TfAll) => {
+    const dlFleetPerformance = async (tf: TfFleet) => {
         const period = fleetPerfPeriod(tf);
-        const base = api(ops, "vehiclewiseSummary")?.replace(/\/+$/, "");
-        if (!base) throw new Error("API not configured");
+        let endpointKey: "vehicleDetails1d" | "vehicleDetails7d" | "vehicleDetails30d" | "vehicleDetailsMtd" = "vehicleDetails30d";
+        if (tf === "MTD") endpointKey = "vehicleDetailsMtd";
+        else if (tf === "1 day") endpointKey = "vehicleDetails1d";
+        else if (tf === "7 days") endpointKey = "vehicleDetails7d";
 
-        const url = `${base}?period=${encodeURIComponent(period)}&_t=${Date.now()}`;
+        const baseUrl = api(ops, endpointKey);
+        if (!baseUrl) throw new Error("API not configured");
+
+        const url = baseUrl.includes("?")
+            ? `${baseUrl}&_t=${Date.now()}`
+            : `${baseUrl}?_t=${Date.now()}`;
+
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const json = await res.json();
         let rows: any[] = [];
 
-        if (ops === "tanzania" && json?.downloadUrl) {
-            // TZ ops: Lambda returns a pre-signed S3 URL instead of inline data
+        if (Array.isArray(json)) {
+            rows = json;
+        } else if (ops === "tanzania" && json?.downloadUrl) {
+            // Legacy/fallback TZ ops logic
             const fileRes = await fetch(json.downloadUrl);
             if (!fileRes.ok) {
                 alert("Failed to fetch dataset from S3.");
@@ -399,7 +414,6 @@ export function Reports() {
             }
             rows = await fileRes.json();
         } else {
-            // ZM ops (or legacy TZ): data comes inline in the response
             if (Array.isArray(json?.data)) rows = json.data;
             else if (json?.data && typeof json.data === "object") {
                 rows = json.data[period] || json.data.latest || [];
@@ -408,8 +422,116 @@ export function Reports() {
 
         if (!rows?.length) return alert("No Fleet Performance data.");
 
+        // First apply any vehicle search UI filters
         rows = filterByVehicle(rows);
         if (!rows.length) return alert("No data for the selected vehicle.");
+
+        // Check if data is using the NEW format (camelCase with 'date' field meaning timeseries)
+        // or the OLD format (already aggregated with specific mapped string keys like 'Vehicle' and 'Total Trips Length (km)')
+        const isNewFormat = rows.length > 0 && "totalTripLengthKm" in rows[0];
+
+        if (isNewFormat && tf === "1 day") {
+            // For 1 day reports, Navixy's API may return overlapping 24hr data spanning two calendar dates.
+            // We must filter strictly to the latest calendar date to prevent summing 2 days of stats.
+            const maxDate = rows.reduce((max, r) => (r.date && r.date > max) ? r.date : max, "");
+            if (maxDate) {
+                rows = rows.filter(r => r.date === maxDate);
+            }
+        }
+
+        let finalRows = [];
+
+        if (isNewFormat && tf === "MTD") {
+            // MTD is pre-aggregated and pre-sorted by backend — just map fields
+            finalRows = rows.map((r: any) => ({
+                "Vehicle": (r.vehicle || "").trim(),
+                "Total Trips Length (km)": Number(r.totalTripLengthKm || 0).toFixed(2),
+                "Number of Trips": r.tripCount || 0,
+                "Average Distance Travelled per Trip": Number(r.avgDistancePerTripKm || 0).toFixed(2),
+                "Average Speed in Trip": Number(r.avgSpeedKmh || 0).toFixed(2),
+                "Total Driving Duration (hrs)": Number(r.drivingDurationH || 0).toFixed(2),
+                "Total Night Driving Duration (hrs)": Number(r.nightDrivingH || 0).toFixed(2),
+                "Total Engine Hours (hrs)": Number(r.engineHoursH || 0).toFixed(2),
+                "Total Idling Hours (hrs)": Number(r.idlingHoursH || 0).toFixed(2),
+                "Total In Movement Duration (hrs)": Number(r.inMovementHoursH || 0).toFixed(2),
+                "Fuel Consumption (litres)": Number(r.fuelConsumptionL || 0).toFixed(2),
+                "Mileage (kmpl)": Number(r.mileageKmpl || 0).toFixed(2),
+            }));
+        } else if (isNewFormat) {
+            // Aggregate timeseries logs by vehicle for 1d/7d/30d
+            const aggs = new Map<string, any>();
+            for (const r of rows) {
+                const vName = typeof r.vehicle === 'string' ? r.vehicle.trim() : "Unknown Vehicle";
+                if (!aggs.has(vName)) {
+                    aggs.set(vName, {
+                        Vehicle: vName,
+                        "Total Trips Length (km)": 0,
+                        "Number of Trips": 0,
+                        "Average Distance Travelled per Trip": 0,
+                        "Average Speed in Trip": 0,
+                        "Total Driving Duration (hrs)": 0,
+                        "Total Night Driving Duration (hrs)": 0,
+                        "Total Engine Hours (hrs)": 0,
+                        "Total Idling Hours (hrs)": 0,
+                        "Total In Movement Duration (hrs)": 0,
+                        "Fuel Consumption (litres)": 0,
+                        "Mileage (kmpl)": 0,
+                        // internal accumulators for weighted avg speed
+                        _speedSum: 0,
+                        _speedCount: 0,
+                    });
+                }
+                const agg = aggs.get(vName);
+                agg["Total Trips Length (km)"] += Number(r.totalTripLengthKm || 0);
+                agg["Number of Trips"] += Number(r.tripCount || 0);
+                agg["Total Driving Duration (hrs)"] += Number(r.drivingDurationH || 0);
+                agg["Total Night Driving Duration (hrs)"] += Number(r.nightDrivingH || 0);
+                agg["Total Engine Hours (hrs)"] += Number(r.engineHoursH || 0);
+                agg["Total In Movement Duration (hrs)"] += Number(r.drivingDurationH || 0);
+                agg["Total Idling Hours (hrs)"] += Number(r.idlingHoursH || 0);
+                agg["Fuel Consumption (litres)"] += Number(r.fuelConsumptionL || 0);
+                // Accumulate avgTripSpeed for weighted average
+                const spd = Number(r.avgTripSpeed || 0);
+                if (spd > 0) {
+                    agg._speedSum += spd;
+                    agg._speedCount += 1;
+                }
+            }
+
+            for (const agg of aggs.values()) {
+                const trips = agg["Number of Trips"];
+                const dist = agg["Total Trips Length (km)"];
+                const fuel = agg["Fuel Consumption (litres)"];
+
+                if (trips > 0) {
+                    agg["Average Distance Travelled per Trip"] = Number((dist / trips).toFixed(2));
+                }
+                if (fuel > 0) {
+                    agg["Mileage (kmpl)"] = Number((dist / fuel).toFixed(2));
+                }
+                if (agg._speedCount > 0) {
+                    agg["Average Speed in Trip"] = Number((agg._speedSum / agg._speedCount).toFixed(2));
+                }
+
+                agg["Total Trips Length (km)"] = Number(dist.toFixed(2));
+                agg["Total Driving Duration (hrs)"] = Number(agg["Total Driving Duration (hrs)"].toFixed(2));
+                agg["Total Engine Hours (hrs)"] = Number(agg["Total Engine Hours (hrs)"].toFixed(2));
+                agg["Total Idling Hours (hrs)"] = Number(agg["Total Idling Hours (hrs)"].toFixed(2));
+                agg["Total In Movement Duration (hrs)"] = Number(agg["Total In Movement Duration (hrs)"].toFixed(2));
+                agg["Fuel Consumption (litres)"] = Number(fuel.toFixed(2));
+
+                // Clean up internal fields
+                delete agg._speedSum;
+                delete agg._speedCount;
+            }
+
+            // Sort by Total Trips Length descending
+            finalRows = Array.from(aggs.values()).sort((a, b) =>
+                b["Total Trips Length (km)"] - a["Total Trips Length (km)"]
+            );
+        } else {
+            finalRows = rows;
+        }
 
         const columnsOrder = [
             "Vehicle", "Total Trips Length (km)", "Number of Trips",
@@ -417,16 +539,15 @@ export function Reports() {
             "Total Driving Duration (hrs)", "Total Night Driving Duration (hrs)",
             "Total Engine Hours (hrs)", "Total Idling Hours (hrs)",
             "Total In Movement Duration (hrs)", "Fuel Consumption (litres)",
-            "Fuel Expense (USD)", "Mileage (kmpl)",
+            "Mileage (kmpl)",
         ];
 
-        const csv = Papa.unparse(rows, { columns: columnsOrder });
+        const csv = Papa.unparse(finalRows, { columns: columnsOrder });
         downloadBlob(csv, `FleetPerformance_${ops}_${period}_${new Date().toISOString().slice(0, 10)}.csv`);
     };
 
     const dlGeofence = async () => {
-        const base = api(ops, "geofjson")?.replace(/\/+$/, "");
-        if (!base) throw new Error("API not configured");
+        const base = api(ops, "geofjson");
 
         const url = `${base}?limit=500&_t=${Date.now()}`;
         const res = await fetch(url, { cache: "no-store" });
@@ -435,21 +556,8 @@ export function Reports() {
         let rows = Array.isArray(data?.data) ? data.data : [];
         if (rows.length === 0) return alert("No geofence data available.");
 
-        // Apply TZ specific logic: remove dwell > 30 days and sort highest to lowest
-        if (ops === 'tanzania') {
-            rows = rows.filter((r: any) => {
-                const days = r.dwellDays != null ? Number(r.dwellDays) : (r.dwell_days != null ? Number(r.dwell_days) : null);
-                return days == null || days <= 30;
-            });
-            rows.sort((a: any, b: any) => {
-                const aDays = a.dwellDays != null ? Number(a.dwellDays) : (a.dwell_days != null ? Number(a.dwell_days) : -Infinity);
-                const bDays = b.dwellDays != null ? Number(b.dwellDays) : (b.dwell_days != null ? Number(b.dwell_days) : -Infinity);
-                return bDays - aDays;
-            });
-        }
-
         rows = filterByVehicle(rows);
-        if (!rows.length) return alert("No data for the selected vehicle (or none under 30 days).");
+        if (!rows.length) return alert("No data for the selected vehicle.");
 
         const csv = Papa.unparse(rows);
         downloadBlob(csv, `GeofenceReport_${ops}_${new Date().toISOString().slice(0, 10)}.csv`);
@@ -494,8 +602,7 @@ export function Reports() {
     };
 
     const dlSpeedViolators = async (tf: TfAll) => {
-        const base = api(ops, "speedViolations")?.replace(/\/+$/, "");
-        if (!base) throw new Error("API not configured");
+        const base = api(ops, "speedViolations");
 
         const win = speedWindow(tf);
         const url = `${base}?window=${win}&limit=100&_t=${Date.now()}`;

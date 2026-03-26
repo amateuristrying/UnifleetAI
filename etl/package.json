@@ -1,0 +1,15 @@
+{
+    "name": "unifleet-etl",
+    "version": "1.0.0",
+    "description": "Live telemetry ETL pipeline — Navixy WebSocket → Supabase",
+    "type": "module",
+    "scripts": {
+        "start": "node worker.js",
+        "dev": "node --watch worker.js"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.45.0",
+        "ws": "^8.18.0",
+        "dotenv": "^16.4.5"
+    }
+}

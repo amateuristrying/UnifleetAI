@@ -80,6 +80,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/zambia\/above-avg/, ''),
         secure: true,
       },
+      '/api/zambia/details': {
+        target: 'https://j32nyn6sda.execute-api.ap-south-1.amazonaws.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/zambia\/details/, ''),
+        secure: true,
+      },
       // ===== TANZANIA APIs =====
       '/api/tanzania/summaryapi': {
         target: 'https://6s4huxb9i1.execute-api.ap-south-1.amazonaws.com',
@@ -139,6 +145,12 @@ export default defineConfig({
         target: 'https://rjgup9a7el.execute-api.ap-south-1.amazonaws.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/tanzania\/above-avg/, ''),
+        secure: true,
+      },
+      '/api/tanzania/details': {
+        target: 'https://skuy7iscid.execute-api.ap-south-1.amazonaws.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/tanzania\/details/, ''),
         secure: true,
       },
     }
