@@ -112,14 +112,14 @@ export default function LiveFleet() {
     }
 
     return (
-        <div className={cn("flex flex-col h-full transition-all duration-500", !showSidebar && "p-4")}>
-            <div className="flex-1 flex flex-col min-h-0 m-4 lg:m-6 rounded-[40px] bg-surface-card shadow-xl border border-border/50 overflow-hidden">
+        <div className={cn("flex flex-col h-full transition-all duration-500", !showSidebar && "p-0 sm:p-4")}>
+            <div className="flex-1 flex flex-col min-h-0 m-0 sm:m-4 lg:m-6 sm:rounded-[40px] bg-surface-card shadow-xl border-x-0 sm:border border-border/50 overflow-y-auto sm:overflow-hidden">
                 {/* Premium Header - Nested in surface box for better containment */}
                 {!isLocked && (
-                    <div className="px-8 py-6 border-b border-border flex items-center justify-between bg-surface-card/80 backdrop-blur-xl sticky top-0 z-20">
+                    <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 bg-surface-card/80 backdrop-blur-xl sticky top-0 z-20">
                         <div className="flex items-center gap-6">
                             <div className="flex flex-col">
-                                <h1 className="text-2xl font-black text-foreground uppercase tracking-tighter leading-none">
+                                <h1 className="text-xl sm:text-2xl font-black text-foreground uppercase tracking-tighter leading-none">
                                     Live Fleet Monitoring
                                 </h1>
                                 <div className="flex items-center gap-2 mt-1">
@@ -130,7 +130,7 @@ export default function LiveFleet() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-4 sm:gap-6 self-end sm:self-auto">
                             {loading && <Loader2 className="animate-spin text-primary" size={20} />}
                             <div className="flex items-center gap-3">
                                 <button
@@ -140,7 +140,7 @@ export default function LiveFleet() {
                                     <RefreshCw size={14} className={cn(isRefreshing && "animate-spin text-primary")} />
                                     <span className="text-[10px] font-black uppercase tracking-widest">Resync</span>
                                 </button>
-                                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                                <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-full border border-emerald-500/20">
                                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                     <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Signal Active</span>
                                 </div>
@@ -150,8 +150,8 @@ export default function LiveFleet() {
                 )}
 
                 {/* Main Content Workspace */}
-                <div className="flex-1 p-6 lg:p-10 overflow-hidden flex flex-col min-h-0 w-full">
-                    <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+                <div className="flex-1 p-3 sm:p-6 lg:p-10 sm:overflow-hidden flex flex-col min-h-0 w-full">
+                    <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6 min-h-0">
                         <div className="lg:col-span-4 flex flex-col min-h-0">
                             {selectedTrackerId ? (
                                 <VehiclePanel
@@ -174,7 +174,7 @@ export default function LiveFleet() {
                                 />
                             )}
                         </div>
-                        <div className="lg:col-span-8 h-full min-h-[500px]">
+                        <div className="lg:col-span-8 h-[50vh] sm:h-auto sm:min-h-[500px]">
                             <RealtimeMap
                                 trackers={selectedTrackerId && trackerStates[selectedTrackerId] ? { [selectedTrackerId]: trackerStates[selectedTrackerId] } : trackerStates}
                                 trackerLabels={trackerLabels}
