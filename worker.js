@@ -150,7 +150,7 @@ async function fetchTrackerList(sessionKey, opsRegion) {
 
 async function fetchZoneList(sessionKey, opsRegion) {
     try {
-        const url = `${CONFIG.navixy.apiUrl}/zone/list?hash=${sessionKey}`;
+        const url = `${CONFIG.navixy.apiUrl}/zone/list?hash=${sessionKey}&with_points=true`;
         const res = await fetch(url);
         const data = await res.json();
 

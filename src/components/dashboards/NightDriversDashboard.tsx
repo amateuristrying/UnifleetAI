@@ -48,7 +48,7 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
     useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
-        const run = async () => {
+        const run = async (retryCount = 0) => {
             setLoading(true);
             try {
                 const base = api(ops, "nightDriving").replace(/\/+$/, "");
@@ -58,6 +58,14 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
                 const url = `${endpoint}?window=${winParam}&_t=${Date.now()}`;
 
                 const res = await fetch(url, { cache: "no-store" });
+                
+                // Handle 503 with retry
+                if (res.status === 503 && retryCount < 1) {
+                    console.warn('[NightDrivers] 503 Service Unavailable, retrying...');
+                    await new Promise(r => setTimeout(r, 1000));
+                    return run(retryCount + 1);
+                }
+
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
 
@@ -78,7 +86,7 @@ export const NightDriversDashboard: React.FC<NightDriversDashboardProps> = ({
                     t = [{ date: String(anchor), total_night_hours: Number(sum.toFixed(2)) }];
                 }
                 // For MTD, ensure chart starts from 1st of current month
-                if (filter === "mtd" && t.length > 0) {
+                if (filter === "mtd" && t.length > 31) {
                     const now = new Date();
                     const y = now.getFullYear();
                     const m = String(now.getMonth() + 1).padStart(2, '0');

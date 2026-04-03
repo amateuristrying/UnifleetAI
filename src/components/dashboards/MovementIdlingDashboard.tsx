@@ -39,7 +39,7 @@ export const MovementIdlingDashboard: React.FC<MovementIdlingDashboardProps> = (
     useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
-        const run = async () => {
+        const run = async (retryCount = 0) => {
             setLoading(true);
             try {
                 const base = api(ops, "inMovementVsIdling").replace(/\/+$/, "");
@@ -47,6 +47,14 @@ export const MovementIdlingDashboard: React.FC<MovementIdlingDashboardProps> = (
                 const url = `${base}?window=${windowType}`;
 
                 const res = await fetch(url);
+                
+                // Handle 503 with retry
+                if (res.status === 503 && retryCount < 1) {
+                    console.warn('[MovementIdling] 503 Service Unavailable, retrying...');
+                    await new Promise(r => setTimeout(r, 1000));
+                    return run(retryCount + 1);
+                }
+
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
 
@@ -58,11 +66,14 @@ export const MovementIdlingDashboard: React.FC<MovementIdlingDashboardProps> = (
                     ?? json?.results?.[legacyKey]?.data
                     ?? [];
                 if (dateFilter === "MTD" && Array.isArray(series)) {
-                    const now = new Date();
-                    const y = now.getFullYear();
-                    const m = String(now.getMonth() + 1).padStart(2, '0');
-                    const startOfMonth = `${y}-${m}-01`;
-                    series = series.filter((d: any) => d.date >= startOfMonth);
+                    // Only filter if we have more than 31 days (trimming excess)
+                    if (series.length > 31) {
+                        const now = new Date();
+                        const y = now.getFullYear();
+                        const m = String(now.getMonth() + 1).padStart(2, '0');
+                        const startOfMonth = `${y}-${m}-01`;
+                        series = series.filter((d: any) => d.date >= startOfMonth);
+                    }
                 } else if (dateFilter === "30 days" && Array.isArray(series)) {
                     // Strip leading zero-value entries (e.g. ZM backend returning Jan 31 with zeros)
                     while (series.length > 0 && Number(series[0]?.totalIdling ?? 0) === 0 && Number(series[0]?.totalMovement ?? 0) === 0) {

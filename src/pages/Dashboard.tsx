@@ -78,6 +78,17 @@ export function Dashboard() {
     const [speedFilter, setSpeedFilter] = useState<TF>("30 days");
     const [commonFilter, setCommonFilter] = useState<TF>("30 days");
 
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    // Increment refresh key whenever we land on dashboard from elsewhere or click it again
+    useEffect(() => {
+        setRefreshKey(prev => prev + 1);
+    }, [location.pathname, location.key]);
+
+    const handleManualRefresh = () => {
+        setRefreshKey(prev => prev + 1);
+    };
+
     // Handle ?df=1d|7d|30d from URL
     useEffect(() => {
         const df = (new URLSearchParams(location.search).get("df") || "").toLowerCase();
@@ -363,45 +374,58 @@ export function Dashboard() {
 
                     {/* Right Side: PDF + Ops Toggle */}
                     <div className="flex flex-col items-end gap-2">
-                        {/* Download PDF Button */}
-                        <div className="relative group">
+                        <div className="flex items-center gap-3">
+                            {/* Refresh All button */}
                             <button
-                                id="download-pdf-btn"
-                                onClick={handleDownloadPdf}
-                                disabled={!canDownload}
-                                className={cn(
-                                    "flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition-all",
-                                    !canDownload
-                                        ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
-                                        : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-                                )}
+                                onClick={handleManualRefresh}
+                                disabled={!allSettled}
+                                className="flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm bg-muted text-muted-foreground hover:bg-muted/80 transition-all disabled:opacity-50"
+                                title="Recall all APIs"
                             >
-                                {isDownloading ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Generating PDF...
-                                    </>
-                                ) : !allSettled ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Loading...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Download className="h-4 w-4" />
-                                        Download PDF
-                                    </>
-                                )}
+                                <Loader2 className={cn("h-4 w-4", !allSettled && "animate-spin")} />
+                                {allSettled ? "Refresh All" : "Refreshing..."}
                             </button>
-                            {/* Tooltip on hover when disabled */}
-                            {!canDownload && !isDownloading && (
-                                <div className="absolute right-0 top-full mt-2 z-50 hidden group-hover:block">
-                                    <div className="bg-slate-900 dark:bg-slate-700 text-white text-xs font-medium px-3 py-2 rounded-lg shadow-lg whitespace-nowrap">
-                                        Dashboards are still settling down. Please wait!
-                                        <div className="absolute -top-1 right-4 w-2 h-2 bg-slate-900 dark:bg-slate-700 rotate-45" />
+
+                            {/* Download PDF Button */}
+                            <div className="relative group">
+                                <button
+                                    id="download-pdf-btn"
+                                    onClick={handleDownloadPdf}
+                                    disabled={!canDownload}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition-all",
+                                        !canDownload
+                                            ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                                            : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                                    )}
+                                >
+                                    {isDownloading ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Generating PDF...
+                                        </>
+                                    ) : !allSettled ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Loading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="h-4 w-4" />
+                                            Download PDF
+                                        </>
+                                    )}
+                                </button>
+                                {/* Tooltip on hover when disabled */}
+                                {!canDownload && !isDownloading && (
+                                    <div className="absolute right-0 top-full mt-2 z-50 hidden group-hover:block">
+                                        <div className="bg-slate-900 dark:bg-slate-700 text-white text-xs font-medium px-3 py-2 rounded-lg shadow-lg whitespace-nowrap">
+                                            Dashboards are still settling down. Please wait!
+                                            <div className="absolute -top-1 right-4 w-2 h-2 bg-slate-900 dark:bg-slate-700 rotate-45" />
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
                         {/* Ops Toggle Switch */}
@@ -444,6 +468,7 @@ export function Dashboard() {
                 <div key={ops} ref={sectionsRootRef} className="space-y-6">
                     <section className="pdf-section">
                         <SummaryMetricsDashboard
+                            key={`summary-${refreshKey}`}
                             dateFilter={summaryFilter}
                             setDateFilter={handleSummarySet}
                             onLoadingChange={onSummaryLoading}
@@ -452,6 +477,7 @@ export function Dashboard() {
 
                     <section className="pdf-section">
                         <DailyAssetsActiveDashboard
+                            key={`daily-${refreshKey}`}
                             dateFilter={commonFilter}
                             setDateFilter={(v: string) =>
                                 setCommonFilter((v as TF) || "30 days")

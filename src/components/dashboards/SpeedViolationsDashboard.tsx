@@ -79,17 +79,23 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
     useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
-        const load = async () => {
+        const load = async (retryCount = 0) => {
             setLoading(true);
             try {
                 const base = api(ops, 'speedViolations');
-
                 const windowVal = WINDOW_MAP[dateFilter] ?? '30d';
                 let url = `${base}?window=${windowVal}&limit=15&_t=${Date.now()}`;
 
                 let res = await fetch(url, { cache: 'no-store' });
-                let raw: any;
+                
+                // Handle 503 with a single retry
+                if (res.status === 503 && retryCount < 1) {
+                    console.warn('[SpeedViolations] 503 Service Unavailable, retrying...');
+                    await new Promise(r => setTimeout(r, 1000));
+                    return load(retryCount + 1);
+                }
 
+                let raw: any;
                 if (res.ok) {
                     raw = await res.json();
                 } else {
@@ -105,19 +111,21 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
                 }
 
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                console.log('[SpeedViolations] Raw response:', raw);
-
+                
                 // Handle nested body JSON (like UNIFLEET 3)
                 const payload = raw?.status ? raw : (raw?.body ? JSON.parse(raw.body) : raw);
-                console.log('[SpeedViolations] Parsed payload:', payload);
-                console.log('[SpeedViolations] Verification:', { window: payload?.window, source: payload?.source_key });
-
+                
                 const byDayRaw = payload?.by_day ?? payload?.byDay ?? payload?.violations_by_day ?? [];
                 const violatorsRaw = payload?.violators ?? payload?.top_violators ?? payload?.topViolators ?? [];
 
                 let byDayArr = Array.isArray(byDayRaw) ? byDayRaw : [];
-                // For MTD, ensure chart starts from 1st of current month
-                if (windowVal === 'mtd' && byDayArr.length > 0) {
+                
+                // --- FIXED MTD FILTERING ---
+                // Previously, we strictly filtered for the 1st of the month.
+                // If today is the 1st and no data is back from API for today yet, the chart was empty.
+                // We now only filter if the backend didn't already filter (i.e. if it returns more than 31 days)
+                // or we just trust the backend for MTD window.
+                if (windowVal === 'mtd' && byDayArr.length > 31) {
                     const now = new Date();
                     const y = now.getFullYear();
                     const m = String(now.getMonth() + 1).padStart(2, '0');

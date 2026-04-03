@@ -76,7 +76,7 @@ export function SummaryMetricsDashboard({
     useEffect(() => {
         const controller = new AbortController();
 
-        const fetchSummaries = async () => {
+        const fetchSummaries = async (retryCount = 0) => {
             setLoading(true);
             try {
                 const periodMap: Record<string, 'latest' | '7d' | '30d' | 'mtd'> = {
@@ -98,6 +98,14 @@ export function SummaryMetricsDashboard({
                     fetch(s1Url, { signal: controller.signal }),
                     fetch(s2Url, { signal: controller.signal }),
                 ]);
+
+                // Handle 503 with retry
+                if ((res1.status === 503 || res2.status === 503) && retryCount < 1) {
+                    console.warn('[SummaryMetrics] 503 Service Unavailable detected, retrying...');
+                    await new Promise(r => setTimeout(r, 1000));
+                    return fetchSummaries(retryCount + 1);
+                }
+
                 let [data1, data2] = await Promise.all([res1.json(), res2.json()]);
 
                 // If MTD files don't exist on this backend yet, fallback to 30d

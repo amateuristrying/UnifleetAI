@@ -25,7 +25,7 @@ export const GeofenceDashboard: React.FC<GeofenceDashboardProps> = ({ onLoadingC
 
     useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
-    const load = async () => {
+    const load = async (retryCount = 0) => {
         setLoading(true);
         setErr(null);
         try {
@@ -33,18 +33,27 @@ export const GeofenceDashboard: React.FC<GeofenceDashboardProps> = ({ onLoadingC
             const url = `${base}?limit=50&_t=${Date.now()}`;
 
             const res = await fetch(url, { cache: "no-store" });
+            
+            // Handle 503 with retry
+            if (res.status === 503 && retryCount < 1) {
+                console.warn('[Geofence] 503 Service Unavailable, retrying...');
+                await new Promise(r => setTimeout(r, 1000));
+                return load(retryCount + 1);
+            }
+
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 
             const rawData = Array.isArray(data?.data) ? data.data : [];
-            setRows(rawData.map((r: Record<string, unknown>) => ({
+            const mapped = rawData.map((r: Record<string, unknown>) => ({
                 vehicleNumber: String(r.vehicleNumber ?? r.vehicle_number ?? ''),
                 currentGeofence: String(r.currentGeofence ?? r.current_geofence ?? ''),
                 entryDatetime: String(r.entryDatetime ?? r.entry_datetime ?? ''),
                 exitDatetime: String(r.exitDatetime ?? r.exit_datetime ?? ''),
                 dwellHours: r.dwellHours != null ? Number(r.dwellHours) : (r.dwell_hours != null ? Number(r.dwell_hours) : null),
                 dwellDays: r.dwellDays != null ? Number(r.dwellDays) : (r.dwell_days != null ? Number(r.dwell_days) : null),
-            })));
+            }));
+            setRows(mapped.filter((r: GeofenceRow) => r.dwellDays === null || r.dwellDays <= 30));
         } catch (e: unknown) {
             console.error("[geofence] fetch failed", e);
             setErr((e as Error)?.message || "Failed to fetch");
@@ -72,7 +81,7 @@ export const GeofenceDashboard: React.FC<GeofenceDashboardProps> = ({ onLoadingC
                     <h3 className="text-lg font-bold uppercase tracking-wide">GEOFENCE TABLE</h3>
                 </div>
                 <button
-                    onClick={load}
+                    onClick={() => load()}
                     disabled={loading}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full bg-muted text-muted-foreground hover:bg-muted/80 transition-all disabled:opacity-50"
                 >

@@ -53,14 +53,21 @@ export function DailyAssetsActiveDashboard({
     useEffect(() => {
         const controller = new AbortController();
 
-        const fetchAssetsActive = async () => {
+        const fetchAssetsActive = async (retryCount = 0) => {
             setLoading(true);
             try {
                 const url = api(ops, 'assetsActive');
-                console.log('[DailyAssets] Fetching:', url);
                 const res = await fetch(url, { method: 'GET', signal: controller.signal });
+                
+                // Handle 503 with retry
+                if (res.status === 503 && retryCount < 1) {
+                    console.warn('[DailyAssets] 503 Service Unavailable, retrying...');
+                    await new Promise(r => setTimeout(r, 1000));
+                    return fetchAssetsActive(retryCount + 1);
+                }
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                console.log('[DailyAssets] Response:', data);
 
                 const list: AssetPoint[] = Array.isArray(data?.assets_active)
                     ? data.assets_active.map((d: { date: string; assets: number }) => {
@@ -93,7 +100,11 @@ export function DailyAssetsActiveDashboard({
             const y = now.getFullYear();
             const m = String(now.getMonth() + 1).padStart(2, '0');
             const startOfMonth = `${y}-${m}-01`;
-            return rawAssets.filter(p => p.date >= startOfMonth);
+            // Only filter if we have more than 31 days (trimming excess)
+            if (rawAssets.length > 31) {
+                return rawAssets.filter(p => p.date >= startOfMonth);
+            }
+            return rawAssets;
         }
         return rawAssets;
     }, [rawAssets, dateFilter]);
@@ -178,4 +189,4 @@ export function DailyAssetsActiveDashboard({
             </div>
         </div>
     );
-};
+}

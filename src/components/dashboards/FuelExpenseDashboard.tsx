@@ -31,7 +31,7 @@ export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
     useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
     useEffect(() => {
-        const fetchFuelExpense = async () => {
+        const fetchFuelExpense = async (retryCount = 0) => {
             setLoading(true);
             try {
                 const base = api(ops, 'fuelExpense').replace(/\/+$/, '');
@@ -40,6 +40,14 @@ export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
                 const url = `${endpoint}?window=${windowType}`;
 
                 const res = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store' });
+                
+                // Handle 503 with retry
+                if (res.status === 503 && retryCount < 1) {
+                    console.warn('[FuelExpense] 503 Service Unavailable, retrying...');
+                    await new Promise(r => setTimeout(r, 1000));
+                    return fetchFuelExpense(retryCount + 1);
+                }
+
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
 
@@ -53,11 +61,14 @@ export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
 
                 // For MTD, ensure data starts from 1st of current month
                 if (dateFilter === "MTD" && Array.isArray(windowData)) {
-                    const now = new Date();
-                    const y = now.getFullYear();
-                    const m = String(now.getMonth() + 1).padStart(2, '0');
-                    const startOfMonth = `${y}-${m}-01`;
-                    windowData = windowData.filter((d: any) => String(d.date) >= startOfMonth);
+                    // Only filter if we have more than 31 days (trimming excess)
+                    if (windowData.length > 31) {
+                        const now = new Date();
+                        const y = now.getFullYear();
+                        const m = String(now.getMonth() + 1).padStart(2, '0');
+                        const startOfMonth = `${y}-${m}-01`;
+                        windowData = windowData.filter((d: any) => String(d.date) >= startOfMonth);
+                    }
                 } else if (dateFilter === "30 days" && Array.isArray(windowData)) {
                     // Strip leading zero-value entries (e.g. ZM backend returning Jan 31 with zeros)
                     while (windowData.length > 0 && Number(windowData[0]?.motion_usd ?? 0) === 0 && Number(windowData[0]?.idle_usd ?? 0) === 0) {
