@@ -146,6 +146,54 @@ async function fetchTrackerList(sessionKey, opsRegion) {
     }
 }
 
+// ─── Zone List Fetcher ───────────────────────────────────────────────────────
+
+async function fetchZoneList(sessionKey, opsRegion) {
+    try {
+        const url = `${CONFIG.navixy.apiUrl}/zone/list?hash=${sessionKey}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.success || !data.list) {
+            log.warn(`Failed to fetch zone list for ${opsRegion}:`, data.status?.description || 'unknown error');
+            return [];
+        }
+
+        const zones = data.list;
+        log.info(`📋 Fetched ${zones.length} zones for ${opsRegion}`);
+
+        const records = zones.map(z => ({
+            zone_id: z.id,
+            name: z.label,
+            zone_type: z.type,
+            ops_region: opsRegion,
+            radius_meters: z.type === 'circle' ? (z.radius || null) : null,
+            center_lat: z.type === 'circle' ? (z.center?.lat || null) : null,
+            center_lng: z.type === 'circle' ? (z.center?.lng || null) : null,
+            raw_zone: z,
+            updated_at: new Date().toISOString(),
+        }));
+
+        // Batch upsert in chunks of 500
+        for (let i = 0; i < records.length; i += 500) {
+            const chunk = records.slice(i, i + 500);
+            const { error } = await supabase
+                .from('geofences')
+                .upsert(chunk, { onConflict: 'zone_id' });
+
+            if (error) {
+                log.error(`Geofences upsert error (${opsRegion}):`, error.message);
+            }
+        }
+
+        log.success(`Geofences updated for ${opsRegion}: ${records.length} zones`);
+        return zones;
+    } catch (err) {
+        log.error(`Zone list fetch failed (${opsRegion}):`, err.message);
+        return [];
+    }
+}
+
 // ─── Tracker Name Map ────────────────────────────────────────────────────────
 // Populated by fetchTrackerList(), used by flushBuffers() to resolve names
 const trackerNameMap = new Map();
@@ -547,6 +595,9 @@ async function main() {
         // Fetch and register trackers
         await fetchTrackerList(sessionKey, region);
 
+        // Fetch and sync geofences (zones)
+        await fetchZoneList(sessionKey, region);
+
         // Fetch initial states via HTTP API (reliable tracker_ids)
         await fetchInitialStates(sessionKey, region);
 
@@ -564,11 +615,12 @@ async function main() {
     log.success(`ETL Worker running with ${sockets.length} region(s)`);
     log.info('Press Ctrl+C to stop\n');
 
-    // Periodic tracker list refresh (every 6 hours)
+    // Periodic tracker list & zone refresh (every 6 hours)
     setInterval(async () => {
         for (const [region, sessionKey] of Object.entries(CONFIG.navixy.sessions)) {
             if (sessionKey) {
                 await fetchTrackerList(sessionKey, region);
+                await fetchZoneList(sessionKey, region);
             }
         }
     }, 6 * 60 * 60 * 1000);
