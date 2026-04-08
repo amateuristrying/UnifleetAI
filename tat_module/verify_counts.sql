@@ -1,0 +1,1 @@
+SELECT (get_tat_trip_details('2025-10-01', NOW(), 1, 0))->'total_completed' as completed, (get_tat_trip_details('2025-10-01', NOW(), 1, 0))->'total_unfinished' as in_progress, (get_tat_trip_details('2025-10-01', NOW(), 1, 0))->'total_returning' as returning

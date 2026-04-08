@@ -1,0 +1,269 @@
+{
+  "metadata": {
+    "project": "ASAS Transporter TAT & Efficiency Module",
+    "version": "1.0.0",
+    "created": "2026-02-10",
+    "description": "Gold-standard Text-to-SQL training dataset for TAT questions. Covers geofence hierarchy, invisible time, border efficiency, and trip completion metrics.",
+    "schema_notes": {
+      "geofence_visits": {
+        "columns": ["id (integer)", "tracker_id (bigint)", "tracker_name (text)", "geofence_name (text)", "zone_name (text)", "in_time_dt (timestamptz)", "out_time_dt (timestamptz)", "visit_date (date)", "duration_seconds (integer)", "in_address (text)", "out_address (text)", "year (integer)", "month (integer)", "source_file (text)", "created_at (timestamptz)"],
+        "description": "Each row is one geofence visit: a vehicle entering and leaving a named zone."
+      },
+      "geofence_hierarchy": {
+        "yards": ["ASAS DSM Office / Dar W/Shop", "Asas Kibaha Dsm -Yard", "ASAS Chapwa  Yard", "Asas Head Office Ipogolo  Yard -Iringa"],
+        "port": ["KURASINI ALL TOGETHER"],
+        "kurasini_depots": ["MERU TERMINAL DEPOT", "WORLD OIL DEPOT", "TIPER DEPOT", "MOGAS OIL DEPOT", "ORYX FUEL DEPOT", "SUPERSTAR FUEL DEPOT", "OILCOM LIMITED TERMINAL DEPOT", "GBP DRS DEPOT", "Puma Depo Kurasini", "Oryx Loading Depo (Kigamboni)"],
+        "tunduma_nakonde_border": ["TUNDUMA BORDER TZ SIDE", "NAKONDE BORDER ZMB SIDE"],
+        "kasumbalesa_border": ["KASUMBALESA ZMB SIDE", "KASUMBALESA BORDER  DRC SIDE"],
+        "sakania_border": ["SAKANIA ZMB SIDE", "SAKANIA DRC"],
+        "drc_offloading": ["DRC Offloading GEO", "United Petroleum Lubumbashi", "Kolwezi Offloading", "LUALABA OIL (KOLWEZI)", "KANATA PETROLEUM DEPOT (CONSTALINA)", "EXPREE OIL DEPOT"],
+        "zambia_offloading": ["Ndola Offloading", "LUSAKA DEPOT", "Frontier"],
+        "malawi_offloading": ["Lilongwe", "Mzuzu Offloading"],
+        "waypoints_tz": ["Misugusugu Check Point", "RUVU", "MLANDIZI WASHING BAY", "MIKUMI", "RUAHA MBUYUNI", "Makambako", "Mbeya", "UYOLE  MIZANI", "TUKUYU (USHILIKA)"],
+        "waypoints_zmb": ["SERENJE", "MKUSHI", "KAPIRI", "MPIKA", "ISOKA"]
+      }
+    }
+  },
+  "training_data": [
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-001",
+      "question": "How many trips went through Kurasini port in the last 30 days?",
+      "sql": "SELECT COUNT(*) AS trip_count FROM geofence_visits WHERE geofence_name = 'KURASINI ALL TOGETHER' AND in_time_dt >= NOW() - INTERVAL '30 days';",
+      "explanation": "Simple count of visits to the Kurasini mega-geofence within the last 30 days."
+    },
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-002",
+      "question": "Which trucks visited Tunduma border today?",
+      "sql": "SELECT DISTINCT tracker_id FROM geofence_visits WHERE geofence_name = 'TUNDUMA BORDER TZ SIDE' AND in_time_dt::date = CURRENT_DATE;",
+      "explanation": "Distinct tracker IDs that entered the Tunduma TZ-side geofence today."
+    },
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-003",
+      "question": "How long did truck 12345 stay at Nakonde border?",
+      "sql": "SELECT tracker_id, in_time_dt, out_time_dt, EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0 AS dwell_hours FROM geofence_visits WHERE tracker_id = 12345 AND geofence_name = 'NAKONDE BORDER ZMB SIDE' ORDER BY in_time_dt DESC LIMIT 1;",
+      "explanation": "Computes dwell time in hours for the most recent visit of a specific truck at Nakonde."
+    },
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-004",
+      "question": "List all geofence visits for tracker 67890 in the last 7 days.",
+      "sql": "SELECT geofence_name, in_time_dt, out_time_dt, EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0 AS dwell_hours FROM geofence_visits WHERE tracker_id = 67890 AND in_time_dt >= NOW() - INTERVAL '7 days' ORDER BY in_time_dt;",
+      "explanation": "Full chronological visit log for one tracker over the past week."
+    },
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-005",
+      "question": "How many trucks are currently at the ASAS Kibaha yard?",
+      "sql": "SELECT COUNT(DISTINCT tracker_id) AS trucks_present FROM geofence_visits WHERE geofence_name = 'Asas Kibaha Dsm -Yard' AND in_time_dt IS NOT NULL AND out_time_dt IS NULL;",
+      "explanation": "Trucks that have entered but not yet exited the yard (still inside)."
+    },
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-006",
+      "question": "What is the average dwell time at Kasumbalesa border (ZMB side) this month?",
+      "sql": "SELECT ROUND(AVG(EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0)::numeric, 2) AS avg_dwell_hours FROM geofence_visits WHERE geofence_name = 'KASUMBALESA ZMB SIDE' AND in_time_dt >= DATE_TRUNC('month', CURRENT_DATE) AND out_time_dt IS NOT NULL;",
+      "explanation": "Average time spent at the Kasumbalesa ZMB-side border for the current month."
+    },
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-007",
+      "question": "Show me the 10 longest border stops this week.",
+      "sql": "SELECT tracker_id, geofence_name, in_time_dt, out_time_dt, EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0 AS dwell_hours FROM geofence_visits WHERE geofence_name IN ('TUNDUMA BORDER TZ SIDE', 'NAKONDE BORDER ZMB SIDE', 'KASUMBALESA ZMB SIDE', 'KASUMBALESA BORDER  DRC SIDE', 'SAKANIA ZMB SIDE', 'SAKANIA DRC') AND in_time_dt >= NOW() - INTERVAL '7 days' AND out_time_dt IS NOT NULL ORDER BY dwell_hours DESC LIMIT 10;",
+      "explanation": "Top 10 longest visits at any border geofence in the last 7 days."
+    },
+    {
+      "tier": 1,
+      "category": "basic_lookup",
+      "id": "T1-008",
+      "question": "How many trucks visited any Kurasini depot yesterday?",
+      "sql": "SELECT COUNT(DISTINCT tracker_id) AS truck_count FROM geofence_visits WHERE geofence_name IN ('[MERU TERMINAL DEPOT]', '[WORLD OIL DEPOT]', '[TIPER DEPOT]', '[MOGAS OIL DEPOT]', '[ORYX FUEL DEPOT]', '[SUPERSTAR FUEL DEPOT]', '[OILCOM LIMITED TERMINAL DEPOT]', '[GBP DRS DEPOT]', '[Puma Depo Kurasini]', '[Oryx Loading Depo (Kigamboni)]') AND in_time_dt::date = CURRENT_DATE - 1;",
+      "explanation": "Distinct truck count across all Kurasini-area depots for yesterday."
+    },
+    {
+      "tier": 2,
+      "category": "mobilization_lag",
+      "id": "T2-001",
+      "question": "What is the average mobilization lag from yard to Kurasini port in the last 30 days?",
+      "sql": "WITH mobil_lags AS ( SELECT t1.tracker_id, t1.out_time_dt AS yard_exit, t2.in_time_dt AS kurasini_entry, EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS lag_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name IN ('ASAS DSM Office / Dar W/Shop', 'Asas Kibaha Dsm -Yard') AND t2.geofence_name = 'KURASINI ALL TOGETHER' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= NOW() - INTERVAL '30 days' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '5 days' ) SELECT ROUND(AVG(lag_hours)::numeric, 2) AS avg_mobilization_hours, ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lag_hours)::numeric, 2) AS median_mobilization_hours, COUNT(*) AS trip_count FROM mobil_lags;",
+      "explanation": "Joins yard exits to the next Kurasini entry for the same tracker. Caps at 5-day window to avoid false matches. Returns avg, median, and count."
+    },
+    {
+      "tier": 2,
+      "category": "border_efficiency",
+      "id": "T2-002",
+      "question": "What is the average border crossing time from Tunduma (TZ) to Nakonde (ZMB)?",
+      "sql": "WITH border_waits AS ( SELECT t1.tracker_id, t1.out_time_dt AS tz_exit, t2.in_time_dt AS zmb_entry, EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS wait_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND t2.geofence_name = 'NAKONDE BORDER ZMB SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= NOW() - INTERVAL '30 days' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '2 days' ) SELECT ROUND(AVG(wait_hours)::numeric, 2) AS avg_wait_hours, ROUND(MIN(wait_hours)::numeric, 2) AS min_wait_hours, ROUND(MAX(wait_hours)::numeric, 2) AS max_wait_hours, COUNT(*) AS crossing_count FROM border_waits;",
+      "explanation": "Measures the gap between exiting Tunduma TZ geofence and entering Nakonde ZMB geofence. This gap is the border dwell / processing time."
+    },
+    {
+      "tier": 2,
+      "category": "border_efficiency",
+      "id": "T2-003",
+      "question": "Show daily average border wait at Kasumbalesa for the last 2 weeks.",
+      "sql": "SELECT DATE_TRUNC('day', t1.out_time_dt)::date AS day_date, ROUND(AVG(EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0)::numeric, 2) AS avg_wait_hours, COUNT(*)::integer AS truck_count FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'KASUMBALESA ZMB SIDE' AND t2.geofence_name = 'KASUMBALESA BORDER  DRC SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= NOW() - INTERVAL '14 days' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '2 days' GROUP BY 1 ORDER BY 1;",
+      "explanation": "Daily trend of Kasumbalesa ZMB->DRC border crossing time over the past 14 days."
+    },
+    {
+      "tier": 2,
+      "category": "trip_completion",
+      "id": "T2-004",
+      "question": "What percentage of trucks that left the yard actually reached the offloading destination?",
+      "sql": "WITH yard_departures AS ( SELECT DISTINCT tracker_id FROM geofence_visits WHERE geofence_name IN ('ASAS DSM Office / Dar W/Shop', 'Asas Kibaha Dsm -Yard') AND out_time_dt >= NOW() - INTERVAL '30 days' ), reached_offload AS ( SELECT DISTINCT gv.tracker_id FROM geofence_visits gv INNER JOIN yard_departures yd ON gv.tracker_id = yd.tracker_id WHERE gv.geofence_name IN ('Ndola Offloading', 'Kolwezi Offloading', 'LUSAKA DEPOT', 'Frontier', 'United Petroleum Lubumbashi', 'Lilongwe', 'Mzuzu Offloading', 'LUALABA OIL (KOLWEZI)', 'KANATA PETROLEUM DEPOT (CONSTALINA)', 'EXPREE OIL DEPOT', 'DRC Offloading GEO') AND gv.in_time_dt >= NOW() - INTERVAL '30 days' ) SELECT (SELECT COUNT(*) FROM yard_departures) AS total_departed, (SELECT COUNT(*) FROM reached_offload) AS total_completed, ROUND(100.0 * (SELECT COUNT(*) FROM reached_offload) / NULLIF((SELECT COUNT(*) FROM yard_departures), 0), 1) AS completion_rate_pct;",
+      "explanation": "Trip completion rate: trucks that left any ASAS yard AND later appeared at any offloading destination within 30 days."
+    },
+    {
+      "tier": 2,
+      "category": "invisible_time",
+      "id": "T2-005",
+      "question": "What is the average invisible time for trucks between Kurasini and Tunduma?",
+      "sql": "WITH trip_legs AS ( SELECT t1.tracker_id, t1.out_time_dt AS kurasini_exit, t2.in_time_dt AS tunduma_entry, EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS transit_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'KURASINI ALL TOGETHER' AND t2.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= NOW() - INTERVAL '30 days' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '7 days' ), waypoint_time AS ( SELECT tl.tracker_id, tl.kurasini_exit, SUM(EXTRACT(EPOCH FROM (gv.out_time_dt - gv.in_time_dt)) / 3600.0) AS visible_stop_hours FROM trip_legs tl JOIN geofence_visits gv ON gv.tracker_id = tl.tracker_id AND gv.in_time_dt BETWEEN tl.kurasini_exit AND tl.tunduma_entry AND gv.geofence_name NOT IN ('KURASINI ALL TOGETHER', 'TUNDUMA BORDER TZ SIDE') GROUP BY tl.tracker_id, tl.kurasini_exit ) SELECT ROUND(AVG(tl.transit_hours)::numeric, 2) AS avg_total_transit_hours, ROUND(AVG(COALESCE(wt.visible_stop_hours, 0))::numeric, 2) AS avg_visible_stop_hours, ROUND(AVG(tl.transit_hours - COALESCE(wt.visible_stop_hours, 0))::numeric, 2) AS avg_invisible_hours FROM trip_legs tl LEFT JOIN waypoint_time wt ON tl.tracker_id = wt.tracker_id AND tl.kurasini_exit = wt.kurasini_exit;",
+      "explanation": "Invisible time = Total transit time minus time spent at known waypoint geofences. This is time unaccounted for between Kurasini and Tunduma."
+    },
+    {
+      "tier": 2,
+      "category": "dwell_analysis",
+      "id": "T2-006",
+      "question": "Which depot in Kurasini has the longest average loading time?",
+      "sql": "SELECT geofence_name AS depot, ROUND(AVG(EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0)::numeric, 2) AS avg_loading_hours, COUNT(*) AS visit_count FROM geofence_visits WHERE geofence_name IN ('[MERU TERMINAL DEPOT]', '[WORLD OIL DEPOT]', '[TIPER DEPOT]', '[MOGAS OIL DEPOT]', '[ORYX FUEL DEPOT]', '[SUPERSTAR FUEL DEPOT]', '[OILCOM LIMITED TERMINAL DEPOT]', '[GBP DRS DEPOT]', '[Puma Depo Kurasini]', '[Oryx Loading Depo (Kigamboni)]') AND in_time_dt >= NOW() - INTERVAL '30 days' AND out_time_dt IS NOT NULL GROUP BY geofence_name ORDER BY avg_loading_hours DESC;",
+      "explanation": "Ranks Kurasini-area depots by average dwell time, highlighting loading bottlenecks."
+    },
+    {
+      "tier": 2,
+      "category": "border_efficiency",
+      "id": "T2-007",
+      "question": "Compare Tunduma/Nakonde vs Kasumbalesa border wait times this month.",
+      "sql": "WITH tunduma AS ( SELECT EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS wait_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND t2.geofence_name = 'NAKONDE BORDER ZMB SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= DATE_TRUNC('month', CURRENT_DATE) AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '2 days' ), kasumbalesa AS ( SELECT EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS wait_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'KASUMBALESA ZMB SIDE' AND t2.geofence_name = 'KASUMBALESA BORDER  DRC SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= DATE_TRUNC('month', CURRENT_DATE) AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '2 days' ) SELECT 'Tunduma/Nakonde' AS border, ROUND(AVG(wait_hours)::numeric, 2) AS avg_hours, COUNT(*) AS crossings FROM tunduma UNION ALL SELECT 'Kasumbalesa', ROUND(AVG(wait_hours)::numeric, 2), COUNT(*) FROM kasumbalesa;",
+      "explanation": "Side-by-side comparison of the two main border crossings for the current month."
+    },
+    {
+      "tier": 2,
+      "category": "mobilization_lag",
+      "id": "T2-008",
+      "question": "Show me the mobilization lag trend by week for the last 3 months.",
+      "sql": "WITH mobil_lags AS ( SELECT DATE_TRUNC('week', t1.out_time_dt)::date AS week_start, EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS lag_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name IN ('ASAS DSM Office / Dar W/Shop', 'Asas Kibaha Dsm -Yard') AND t2.geofence_name = 'KURASINI ALL TOGETHER' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= NOW() - INTERVAL '3 months' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '5 days' ) SELECT week_start, ROUND(AVG(lag_hours)::numeric, 2) AS avg_lag_hours, COUNT(*) AS trip_count FROM mobil_lags GROUP BY week_start ORDER BY week_start;",
+      "explanation": "Weekly aggregation of Yard->Kurasini mobilization lag over 3 months. Useful for spotting operational trends."
+    },
+    {
+      "tier": 2,
+      "category": "dwell_analysis",
+      "id": "T2-009",
+      "question": "What is the average time trucks spend at each waypoint between DSM and Tunduma?",
+      "sql": "SELECT geofence_name AS waypoint, ROUND(AVG(EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0)::numeric, 2) AS avg_stop_hours, COUNT(*) AS visit_count FROM geofence_visits WHERE geofence_name IN ('Misugusugu Check Point', 'RUVU', 'MLANDIZI WASHING BAY', 'MIKUMI', 'RUAHA MBUYUNI', 'Makambako', 'Mbeya', 'UYOLE  MIZANI', 'TUKUYU (USHILIKA)') AND in_time_dt >= NOW() - INTERVAL '30 days' AND out_time_dt IS NOT NULL GROUP BY geofence_name ORDER BY avg_stop_hours DESC;",
+      "explanation": "Average dwell at each TZ waypoint geofence, ranking by stop duration to identify delays."
+    },
+    {
+      "tier": 2,
+      "category": "basic_lookup",
+      "id": "T2-010",
+      "question": "Which truck has the most border crossings this month?",
+      "sql": "SELECT tracker_id, COUNT(*) AS crossing_count FROM geofence_visits WHERE geofence_name IN ('TUNDUMA BORDER TZ SIDE', 'NAKONDE BORDER ZMB SIDE', 'KASUMBALESA ZMB SIDE', 'KASUMBALESA BORDER  DRC SIDE', 'SAKANIA ZMB SIDE', 'SAKANIA DRC') AND in_time_dt >= DATE_TRUNC('month', CURRENT_DATE) GROUP BY tracker_id ORDER BY crossing_count DESC LIMIT 5;",
+      "explanation": "Top 5 trucks by border visits this month — identifies the most active cross-border vehicles."
+    },
+    {
+      "tier": 3,
+      "category": "invisible_time",
+      "id": "T3-001",
+      "question": "Calculate the full trip invisible time breakdown: Yard to Kurasini, Kurasini to Tunduma, Tunduma to Offloading.",
+      "sql": "WITH trip_chain AS ( SELECT y.tracker_id, y.out_time_dt AS yard_exit, k.in_time_dt AS kurasini_entry, k.out_time_dt AS kurasini_exit, t.in_time_dt AS tunduma_entry, t.out_time_dt AS tunduma_exit, n.in_time_dt AS nakonde_entry FROM geofence_visits y JOIN geofence_visits k ON y.tracker_id = k.tracker_id AND k.geofence_name = 'KURASINI ALL TOGETHER' AND k.in_time_dt > y.out_time_dt AND (k.in_time_dt - y.out_time_dt) < INTERVAL '5 days' JOIN geofence_visits t ON y.tracker_id = t.tracker_id AND t.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND t.in_time_dt > k.out_time_dt AND (t.in_time_dt - k.out_time_dt) < INTERVAL '7 days' JOIN geofence_visits n ON y.tracker_id = n.tracker_id AND n.geofence_name = 'NAKONDE BORDER ZMB SIDE' AND n.in_time_dt > t.out_time_dt AND (n.in_time_dt - t.out_time_dt) < INTERVAL '2 days' WHERE y.geofence_name IN ('ASAS DSM Office / Dar W/Shop', 'Asas Kibaha Dsm -Yard') AND y.out_time_dt >= NOW() - INTERVAL '60 days' ) SELECT ROUND(AVG(EXTRACT(EPOCH FROM (kurasini_entry - yard_exit)) / 3600.0)::numeric, 2) AS avg_yard_to_kurasini_hrs, ROUND(AVG(EXTRACT(EPOCH FROM (kurasini_exit - kurasini_entry)) / 3600.0)::numeric, 2) AS avg_kurasini_dwell_hrs, ROUND(AVG(EXTRACT(EPOCH FROM (tunduma_entry - kurasini_exit)) / 3600.0)::numeric, 2) AS avg_kurasini_to_tunduma_hrs, ROUND(AVG(EXTRACT(EPOCH FROM (tunduma_exit - tunduma_entry)) / 3600.0)::numeric, 2) AS avg_tunduma_dwell_hrs, ROUND(AVG(EXTRACT(EPOCH FROM (nakonde_entry - tunduma_exit)) / 3600.0)::numeric, 2) AS avg_border_crossing_hrs, ROUND(AVG(EXTRACT(EPOCH FROM (nakonde_entry - yard_exit)) / 3600.0)::numeric, 2) AS avg_total_trip_hrs, COUNT(*) AS complete_trips FROM trip_chain;",
+      "explanation": "Full trip chain reconstruction: Yard -> Kurasini -> Tunduma -> Nakonde. Breaks down every leg's duration to identify where time is lost."
+    },
+    {
+      "tier": 3,
+      "category": "invisible_time",
+      "id": "T3-002",
+      "question": "For each truck, calculate invisible time as a percentage of total trip time between Kurasini and the first offloading destination.",
+      "sql": "WITH trip_legs AS ( SELECT k.tracker_id, k.out_time_dt AS kurasini_exit, ( SELECT MIN(o.in_time_dt) FROM geofence_visits o WHERE o.tracker_id = k.tracker_id AND o.geofence_name IN ('Ndola Offloading', 'Kolwezi Offloading', 'LUSAKA DEPOT', 'Frontier', 'United Petroleum Lubumbashi', 'DRC Offloading GEO') AND o.in_time_dt > k.out_time_dt AND (o.in_time_dt - k.out_time_dt) < INTERVAL '14 days' ) AS offload_entry FROM geofence_visits k WHERE k.geofence_name = 'KURASINI ALL TOGETHER' AND k.out_time_dt >= NOW() - INTERVAL '60 days' AND k.out_time_dt IS NOT NULL ), valid_trips AS ( SELECT * FROM trip_legs WHERE offload_entry IS NOT NULL ), visible AS ( SELECT vt.tracker_id, vt.kurasini_exit, COALESCE(SUM(EXTRACT(EPOCH FROM (gv.out_time_dt - gv.in_time_dt)) / 3600.0), 0) AS visible_hours FROM valid_trips vt LEFT JOIN geofence_visits gv ON gv.tracker_id = vt.tracker_id AND gv.in_time_dt BETWEEN vt.kurasini_exit AND vt.offload_entry AND gv.out_time_dt IS NOT NULL GROUP BY vt.tracker_id, vt.kurasini_exit ) SELECT vt.tracker_id, ROUND(EXTRACT(EPOCH FROM (vt.offload_entry - vt.kurasini_exit)) / 3600.0, 2) AS total_hours, ROUND(v.visible_hours::numeric, 2) AS visible_hours, ROUND((EXTRACT(EPOCH FROM (vt.offload_entry - vt.kurasini_exit)) / 3600.0 - v.visible_hours)::numeric, 2) AS invisible_hours, ROUND(100.0 * (EXTRACT(EPOCH FROM (vt.offload_entry - vt.kurasini_exit)) / 3600.0 - v.visible_hours) / NULLIF(EXTRACT(EPOCH FROM (vt.offload_entry - vt.kurasini_exit)) / 3600.0, 0), 1) AS invisible_pct FROM valid_trips vt JOIN visible v ON vt.tracker_id = v.tracker_id AND vt.kurasini_exit = v.kurasini_exit ORDER BY invisible_pct DESC;",
+      "explanation": "Per-truck invisible time analysis. Invisible % = (total transit - time in known geofences) / total transit. High invisible % flags potential unauthorized stops."
+    },
+    {
+      "tier": 3,
+      "category": "trip_completion",
+      "id": "T3-003",
+      "question": "Build a trip funnel: how many trucks pass each checkpoint from Yard to Offloading?",
+      "sql": "WITH yard_starts AS ( SELECT DISTINCT tracker_id FROM geofence_visits WHERE geofence_name IN ('ASAS DSM Office / Dar W/Shop', 'Asas Kibaha Dsm -Yard') AND out_time_dt >= NOW() - INTERVAL '60 days' ), checkpoints AS ( SELECT 1 AS step, 'Yard Departure' AS checkpoint, COUNT(*) AS trucks FROM yard_starts UNION ALL SELECT 2, 'Kurasini Port', COUNT(DISTINCT gv.tracker_id) FROM geofence_visits gv INNER JOIN yard_starts ys ON gv.tracker_id = ys.tracker_id WHERE gv.geofence_name = 'KURASINI ALL TOGETHER' AND gv.in_time_dt >= NOW() - INTERVAL '60 days' UNION ALL SELECT 3, 'Tunduma Border TZ', COUNT(DISTINCT gv.tracker_id) FROM geofence_visits gv INNER JOIN yard_starts ys ON gv.tracker_id = ys.tracker_id WHERE gv.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND gv.in_time_dt >= NOW() - INTERVAL '60 days' UNION ALL SELECT 4, 'Nakonde Border ZMB', COUNT(DISTINCT gv.tracker_id) FROM geofence_visits gv INNER JOIN yard_starts ys ON gv.tracker_id = ys.tracker_id WHERE gv.geofence_name = 'NAKONDE BORDER ZMB SIDE' AND gv.in_time_dt >= NOW() - INTERVAL '60 days' UNION ALL SELECT 5, 'Offloading Destination', COUNT(DISTINCT gv.tracker_id) FROM geofence_visits gv INNER JOIN yard_starts ys ON gv.tracker_id = ys.tracker_id WHERE gv.geofence_name IN ('Ndola Offloading', 'Kolwezi Offloading', 'LUSAKA DEPOT', 'Frontier', 'United Petroleum Lubumbashi', 'DRC Offloading GEO', 'Lilongwe', 'Mzuzu Offloading') AND gv.in_time_dt >= NOW() - INTERVAL '60 days' ) SELECT step, checkpoint, trucks, ROUND(100.0 * trucks / NULLIF(FIRST_VALUE(trucks) OVER (ORDER BY step), 0), 1) AS retention_pct FROM checkpoints ORDER BY step;",
+      "explanation": "Trip funnel showing drop-off at each checkpoint. Retention % shows what fraction of yard-departing trucks reach each stage."
+    },
+    {
+      "tier": 3,
+      "category": "border_efficiency",
+      "id": "T3-004",
+      "question": "Identify trucks that spent more than 24 hours at any border crossing and show their full trip timeline.",
+      "sql": "WITH long_border_stops AS ( SELECT tracker_id, geofence_name, in_time_dt, out_time_dt, EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0 AS dwell_hours FROM geofence_visits WHERE geofence_name IN ('TUNDUMA BORDER TZ SIDE', 'NAKONDE BORDER ZMB SIDE', 'KASUMBALESA ZMB SIDE', 'KASUMBALESA BORDER  DRC SIDE', 'SAKANIA ZMB SIDE', 'SAKANIA DRC') AND out_time_dt IS NOT NULL AND EXTRACT(EPOCH FROM (out_time_dt - in_time_dt)) / 3600.0 > 24 AND in_time_dt >= NOW() - INTERVAL '30 days' ) SELECT lbs.tracker_id, lbs.geofence_name AS stuck_at_border, ROUND(lbs.dwell_hours::numeric, 1) AS border_dwell_hours, gv.geofence_name AS visit_zone, gv.in_time_dt, gv.out_time_dt FROM long_border_stops lbs JOIN geofence_visits gv ON gv.tracker_id = lbs.tracker_id AND gv.in_time_dt BETWEEN (lbs.in_time_dt - INTERVAL '3 days') AND (lbs.out_time_dt + INTERVAL '3 days') ORDER BY lbs.tracker_id, gv.in_time_dt;",
+      "explanation": "Finds trucks stuck at borders for 24+ hours and reconstructs their geofence visit timeline +-3 days around the incident."
+    },
+    {
+      "tier": 3,
+      "category": "invisible_time",
+      "id": "T3-005",
+      "question": "What is the fleet-wide invisible time ratio by corridor (DSM-Tunduma vs DSM-Kasumbalesa)?",
+      "sql": "WITH dsm_tunduma AS ( SELECT t1.tracker_id, EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS total_hours, COALESCE(( SELECT SUM(EXTRACT(EPOCH FROM (gv.out_time_dt - gv.in_time_dt)) / 3600.0) FROM geofence_visits gv WHERE gv.tracker_id = t1.tracker_id AND gv.in_time_dt BETWEEN t1.out_time_dt AND t2.in_time_dt AND gv.out_time_dt IS NOT NULL ), 0) AS visible_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'KURASINI ALL TOGETHER' AND t2.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= NOW() - INTERVAL '60 days' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '7 days' ), dsm_kasumbalesa AS ( SELECT t1.tracker_id, EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS total_hours, COALESCE(( SELECT SUM(EXTRACT(EPOCH FROM (gv.out_time_dt - gv.in_time_dt)) / 3600.0) FROM geofence_visits gv WHERE gv.tracker_id = t1.tracker_id AND gv.in_time_dt BETWEEN t1.out_time_dt AND t2.in_time_dt AND gv.out_time_dt IS NOT NULL ), 0) AS visible_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'KURASINI ALL TOGETHER' AND t2.geofence_name = 'KASUMBALESA ZMB SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.out_time_dt >= NOW() - INTERVAL '60 days' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '14 days' ) SELECT 'DSM → Tunduma' AS corridor, ROUND(AVG(total_hours)::numeric, 2) AS avg_total_hrs, ROUND(AVG(visible_hours)::numeric, 2) AS avg_visible_hrs, ROUND(AVG(total_hours - visible_hours)::numeric, 2) AS avg_invisible_hrs, ROUND(100.0 * AVG(total_hours - visible_hours) / NULLIF(AVG(total_hours), 0), 1) AS invisible_pct, COUNT(*) AS trips FROM dsm_tunduma UNION ALL SELECT 'DSM → Kasumbalesa', ROUND(AVG(total_hours)::numeric, 2), ROUND(AVG(visible_hours)::numeric, 2), ROUND(AVG(total_hours - visible_hours)::numeric, 2), ROUND(100.0 * AVG(total_hours - visible_hours) / NULLIF(AVG(total_hours), 0), 1), COUNT(*) FROM dsm_kasumbalesa;",
+      "explanation": "Compares invisible time ratio across the two main corridors. Higher invisible % on a corridor suggests more unauthorized stops or poor geofence coverage."
+    },
+    {
+      "tier": 3,
+      "category": "trip_completion",
+      "id": "T3-006",
+      "question": "Calculate the end-to-end trip duration percentiles (P50, P75, P90, P95) from Yard to final Offloading.",
+      "sql": "WITH full_trips AS ( SELECT y.tracker_id, y.out_time_dt AS yard_exit, ( SELECT MIN(o.in_time_dt) FROM geofence_visits o WHERE o.tracker_id = y.tracker_id AND o.geofence_name IN ('Ndola Offloading', 'Kolwezi Offloading', 'LUSAKA DEPOT', 'Frontier', 'United Petroleum Lubumbashi', 'DRC Offloading GEO', 'Lilongwe', 'Mzuzu Offloading', 'LUALABA OIL (KOLWEZI)') AND o.in_time_dt > y.out_time_dt AND (o.in_time_dt - y.out_time_dt) < INTERVAL '21 days' ) AS offload_entry FROM geofence_visits y WHERE y.geofence_name IN ('ASAS DSM Office / Dar W/Shop', 'Asas Kibaha Dsm -Yard') AND y.out_time_dt >= NOW() - INTERVAL '90 days' ), completed AS ( SELECT tracker_id, yard_exit, offload_entry, EXTRACT(EPOCH FROM (offload_entry - yard_exit)) / 3600.0 AS trip_hours FROM full_trips WHERE offload_entry IS NOT NULL ) SELECT COUNT(*) AS total_trips, ROUND(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY trip_hours)::numeric, 1) AS p50_hours, ROUND(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY trip_hours)::numeric, 1) AS p75_hours, ROUND(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY trip_hours)::numeric, 1) AS p90_hours, ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY trip_hours)::numeric, 1) AS p95_hours, ROUND(AVG(trip_hours)::numeric, 1) AS avg_hours FROM completed;",
+      "explanation": "Percentile distribution of full trip durations. P90/P95 highlight outlier trips that took abnormally long."
+    },
+    {
+      "tier": 3,
+      "category": "border_efficiency",
+      "id": "T3-007",
+      "question": "Show the hour-of-day pattern for border crossings at Tunduma — when do trucks typically arrive and how long do they wait?",
+      "sql": "WITH arrivals AS ( SELECT EXTRACT(HOUR FROM t1.in_time_dt) AS arrival_hour, EXTRACT(EPOCH FROM (t1.out_time_dt - t1.in_time_dt)) / 3600.0 AS tz_dwell_hours, EXTRACT(EPOCH FROM (t2.in_time_dt - t1.out_time_dt)) / 3600.0 AS crossing_gap_hours FROM geofence_visits t1 JOIN geofence_visits t2 ON t1.tracker_id = t2.tracker_id WHERE t1.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND t2.geofence_name = 'NAKONDE BORDER ZMB SIDE' AND t2.in_time_dt > t1.out_time_dt AND t1.in_time_dt >= NOW() - INTERVAL '60 days' AND (t2.in_time_dt - t1.out_time_dt) < INTERVAL '2 days' AND t1.out_time_dt IS NOT NULL ) SELECT arrival_hour::integer, COUNT(*) AS truck_count, ROUND(AVG(tz_dwell_hours)::numeric, 2) AS avg_tz_side_dwell_hrs, ROUND(AVG(crossing_gap_hours)::numeric, 2) AS avg_crossing_gap_hrs FROM arrivals GROUP BY arrival_hour ORDER BY arrival_hour;",
+      "explanation": "Hourly pattern analysis: shows which hours have the most arrivals and whether arrival timing affects wait times."
+    },
+    {
+      "tier": 3,
+      "category": "invisible_time",
+      "id": "T3-008",
+      "question": "Flag trucks with invisible time above fleet average and show where they were last seen before going dark.",
+      "sql": "WITH trip_legs AS ( SELECT k.tracker_id, k.out_time_dt AS kurasini_exit, t.in_time_dt AS tunduma_entry, EXTRACT(EPOCH FROM (t.in_time_dt - k.out_time_dt)) / 3600.0 AS transit_hours FROM geofence_visits k JOIN geofence_visits t ON k.tracker_id = t.tracker_id WHERE k.geofence_name = 'KURASINI ALL TOGETHER' AND t.geofence_name = 'TUNDUMA BORDER TZ SIDE' AND t.in_time_dt > k.out_time_dt AND k.out_time_dt >= NOW() - INTERVAL '60 days' AND (t.in_time_dt - k.out_time_dt) < INTERVAL '7 days' ), with_visible AS ( SELECT tl.*, COALESCE(( SELECT SUM(EXTRACT(EPOCH FROM (gv.out_time_dt - gv.in_time_dt)) / 3600.0) FROM geofence_visits gv WHERE gv.tracker_id = tl.tracker_id AND gv.in_time_dt BETWEEN tl.kurasini_exit AND tl.tunduma_entry AND gv.out_time_dt IS NOT NULL ), 0) AS visible_hours FROM trip_legs tl ), flagged AS ( SELECT *, transit_hours - visible_hours AS invisible_hours FROM with_visible WHERE (transit_hours - visible_hours) > (SELECT AVG(transit_hours - visible_hours) FROM with_visible) ) SELECT f.tracker_id, ROUND(f.invisible_hours::numeric, 1) AS invisible_hours, ROUND(f.transit_hours::numeric, 1) AS total_hours, ( SELECT gv.geofence_name FROM geofence_visits gv WHERE gv.tracker_id = f.tracker_id AND gv.out_time_dt BETWEEN f.kurasini_exit AND f.tunduma_entry AND gv.out_time_dt IS NOT NULL ORDER BY gv.out_time_dt DESC LIMIT 1 ) AS last_known_zone FROM flagged f ORDER BY f.invisible_hours DESC;",
+      "explanation": "Identifies trucks with above-average invisible time and their last known geofence before they went off-grid. Useful for security / unauthorized stop investigations."
+    },
+    {
+      "tier": 3,
+      "category": "tat_drilldown",
+      "id": "T3-009",
+      "question": "Show me the full journey history for tanker T123 starting last week.",
+      "sql": "SELECT * FROM get_tat_trip_details(NOW() - INTERVAL '7 days', NOW()) WHERE tracker_name = 'T123';",
+      "explanation": "Calls the get_tat_trip_details RPC and filters the JSON result for a specific tracker name."
+    },
+    {
+      "tier": 3,
+      "category": "tat_drilldown",
+      "id": "T3-010",
+      "question": "Which depots have the longest loading phase in Kurasini?",
+      "sql": "SELECT visit->>'geofence_name' as depot_name, AVG((visit->>'out_time')::timestamp - (visit->>'in_time')::timestamp) as avg_loading_time FROM get_tat_trip_details(NOW() - INTERVAL '30 days', NOW()) t, json_array_elements(t.visit_chain) as visit WHERE visit->>'geofence_name' ILIKE '%Depot%' GROUP BY 1 ORDER BY 2 DESC;",
+      "explanation": "Aggregates loading phase duration from the visit_chain JSON array returned by the RPC."
+    },
+    {
+      "tier": 3,
+      "category": "tat_drilldown",
+      "id": "T3-011",
+      "question": "List all trips that are currently stuck at the destination (DRC/Zambia).",
+      "sql": "SELECT tracker_name, dest_name, dest_entry FROM get_tat_trip_details(NOW() - INTERVAL '30 days', NOW()) WHERE trip_status = 'at_destination';",
+      "explanation": "Filters the RPC output for trips where the calculated trip_status is 'at_destination'."
+    },
+    {
+      "tier": 3,
+      "category": "tat_drilldown",
+      "id": "T3-012",
+      "question": "What is the average time between Kurasini Exit and Dar Geofence Exit?",
+      "sql": "SELECT AVG((post_loading_delay_hrs)::numeric) as avg_delay_hrs FROM get_tat_trip_details(NOW() - INTERVAL '30 days', NOW());",
+      "explanation": "Calculates the average of the pre-calculated post_loading_delay_hrs field from the RPC."
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
-import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, Activity, LineChart, Gauge } from "lucide-react";
+import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, Activity, LineChart, Gauge, Clock } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { MarqueeText } from "./ui/MarqueeText";
@@ -74,25 +74,23 @@ export function Sidebar() {
 
                 <SidebarItem
                     icon={<ShieldCheck className="h-5 w-5" />}
-                    label="Live Geofence Monitoring"
+                    label="Live Geofences"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-geofences')}
                     onClick={() => handleNavigation('/live-geofences')}
-                    marquee
                 />
 
                 <SidebarItem
                     icon={<Gauge className="h-5 w-5" />}
-                    label="Live Speed Violations Monitoring"
+                    label="Live Violations"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-speed')}
                     onClick={() => handleNavigation('/live-speed')}
-                    marquee
                 />
 
                 <SidebarItem
                     icon={<LocateFixed className="h-5 w-5" />}
-                    label="Live Fleet Monitoring"
+                    label="Live Fleet"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-fleet')}
                     onClick={() => handleNavigation('/live-fleet')}
@@ -104,6 +102,14 @@ export function Sidebar() {
                     isExpanded={isExpanded}
                     isActive={isActive('/analytics')}
                     onClick={() => handleNavigation('/analytics')}
+                />
+
+                <SidebarItem
+                    icon={<Clock className="h-5 w-5" />}
+                    label="Turnaround time"
+                    isExpanded={isExpanded}
+                    isActive={isActive('/turnaround-time')}
+                    onClick={() => handleNavigation('/turnaround-time')}
                 />
 
                 <SidebarItem

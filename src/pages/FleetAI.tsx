@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { Send, Bot, User, Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { Send, Bot, User, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VEHICLES } from "@/data/mock";
@@ -159,11 +159,14 @@ ${fleetContextData}
                     {/* Chat Header */}
                     <div className="p-4 border-b border-border bg-muted/50 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white shadow-md">
-                                <Sparkles className="h-5 w-5" />
+                            <div className="h-10 w-10 flex items-center justify-center text-foreground">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8">
+                                    <path d="M4 14a8 8 0 0 1 16 0" />
+                                    <path d="M12 11v10" />
+                                </svg>
                             </div>
                             <div>
-                                <h2 className="font-bold text-foreground">Unifleet AI Agent</h2>
+                                <h2 className="font-bold text-foreground text-lg tracking-tight">Unifleet AI Agent</h2>
                             </div>
                         </div>
                     </div>

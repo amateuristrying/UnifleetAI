@@ -22,6 +22,7 @@ import {
     Truck,
     List,
     Smartphone,
+    Activity,
     type LucideIcon,
 } from "lucide-react";
 import { NavixyService } from "../services/navixy";
@@ -29,6 +30,7 @@ import Papa from "papaparse";
 import { useOps } from "../context/OpsContext";
 import { api } from "../context/config";
 import { cn } from "../lib/utils";
+import { supabase } from "../lib/supabase";
 
 
 /* ────────────── Report Type Registry ────────────── */
@@ -185,6 +187,16 @@ const REPORT_TYPES: ReportDef[] = [
         hasApi: false,
         description: "Breaks down total engine-on idle time per vehicle. Excessive idling increases fuel costs and engine wear — this report helps you identify and address the biggest offenders.",
     },
+    {
+        id: "live-status-report",
+        title: "Live Status Report",
+        icon: Activity,
+        color: "bg-blue-500/10 dark:bg-blue-500/20",
+        iconColor: "text-blue-600 dark:text-blue-400",
+        hasTimeframe: false,
+        hasApi: true,
+        description: "A real-time snapshot of the current location, status, and sensor readings for all active devices. Download immediately as CSV.",
+    },
 ];
 
 /* ────────────── Timeframe Constants ────────────── */
@@ -200,7 +212,7 @@ type TfFuel = (typeof TF_FUEL)[number];
 const getTimeframeOptions = (reportId: string): readonly string[] => {
     if (reportId === "fleet-performance") return TF_FLEET;
     if (reportId === "fuel-expense") return TF_FUEL;
-    if (reportId === "geofence-report" || reportId === "inactive-trackers" || reportId === "tracker-list") return [];
+    if (reportId === "geofence-report" || reportId === "inactive-trackers" || reportId === "tracker-list" || reportId === "live-status-report") return [];
     return TF_ALL;
 };
 
@@ -245,6 +257,8 @@ export function Reports() {
     const [vehicleList, setVehicleList] = useState<string[]>([]);
     const [loadingVehicles, setLoadingVehicles] = useState(false);
     const [downloading, setDownloading] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState("");
+
 
     // Reset detail state when selecting a new report
     const openReport = (r: ReportDef) => {
@@ -372,12 +386,16 @@ export function Reports() {
                 case "tracker-list":
                     await dlTrackerList();
                     break;
+                case "live-status-report":
+                    await dlLiveStatus();
+                    break;
             }
         } catch (err) {
             console.error("Download failed:", err);
             alert("Failed to download report.");
         } finally {
             setDownloading(false);
+            setDownloadProgress("");
         }
     };
 
@@ -777,6 +795,105 @@ export function Reports() {
         downloadBlob(csv, filename);
     };
 
+    const dlLiveStatus = async () => {
+        setDownloadProgress("Fetching live fleet data...");
+        const viewName = ops === 'zambia' ? 'v_zambia_fleet_latest' : 'v_tanzania_fleet_latest';
+        const regionCode = ops === 'zambia' ? 'ZM' : 'TZ';
+
+        const { data, error } = await supabase
+            .from(viewName)
+            .select('*');
+
+        if (error) throw error;
+        if (!data || data.length === 0) return alert("No live fleet data found.");
+
+        let rows = [...data];
+
+        // Deduplicate coordinates for geocoding
+        const uniqueCoords = new Map<string, { lat: number; lng: number }>();
+        rows.forEach(r => {
+            if (r.lat && r.lng) {
+                const key = `${r.lat},${r.lng}`;
+                if (!uniqueCoords.has(key)) {
+                    uniqueCoords.set(key, { lat: r.lat, lng: r.lng });
+                }
+            }
+        });
+
+        const coordToLocation = new Map<string, string>();
+        const coordsArray = Array.from(uniqueCoords.entries());
+
+        for (let i = 0; i < coordsArray.length; i++) {
+            const [key, { lat, lng }] = coordsArray[i];
+            setDownloadProgress(`Geocoding locations (${i + 1}/${coordsArray.length})...`);
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
+                    headers: { 'User-Agent': 'UnifleetApp/1.0' }
+                });
+                if (res.ok) {
+                    const json = await res.json();
+                    const addr = json?.address;
+                    if (!addr) {
+                        coordToLocation.set(key, json?.display_name || "Location unavailable");
+                    } else {
+                        // Place part: focus on PoIs, roads, or suburbs
+                        const place = addr.amenity || addr.tourism || addr.industrial || addr.commercial || addr.retail || addr.road || addr.suburb || addr.neighbourhood || addr.village || addr.town || addr.city;
+                        
+                        // Area part: focus on major administrative regions
+                        const area = addr.province || addr.state || addr.region || addr.district || addr.county;
+                        
+                        const country = addr.country;
+                        
+                        const parts = [];
+                        if (place) parts.push(place);
+                        if (area && area !== place) parts.push(area);
+                        if (country) parts.push(country);
+                        
+                        const locationStr = parts.length > 0 ? parts.join(", ") : "Location unavailable";
+                        coordToLocation.set(key, locationStr);
+                    }
+                } else {
+                    coordToLocation.set(key, "Location unavailable");
+                }
+            } catch (err) {
+                console.error(`Geocoding failed for ${key}:`, err);
+                coordToLocation.set(key, "Location unavailable");
+            }
+
+            // Respect rate limit: 1 request per second
+            if (i < coordsArray.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+
+        // Map locations back to rows
+        const finalRows = rows.map(r => ({
+            tracker_id: r.tracker_id,
+            tracker_name: r.tracker_name,
+            ops_region: r.ops_region,
+            location: (r.lat && r.lng) ? (coordToLocation.get(`${r.lat},${r.lng}`) || "Location unavailable") : "No coordinates",
+            lat: r.lat,
+            lng: r.lng,
+            speed: r.speed,
+            movement_status: r.movement_status,
+            ignition: r.ignition,
+            connection_status: r.connection_status,
+            last_seen_date: r.last_seen_date,
+            last_seen_time: r.last_seen_time,
+        }));
+
+        const columnsOrder = [
+            "tracker_id", "tracker_name", "ops_region", "location", "lat", "lng",
+            "speed", "movement_status", "ignition", "connection_status",
+            "last_seen_date", "last_seen_time"
+        ];
+
+        const csv = Papa.unparse(finalRows, { columns: columnsOrder });
+        const dateStr = new Date().toISOString().split('T')[0];
+        downloadBlob(csv, `live_status_${regionCode}_${dateStr}.csv`);
+    };
+
     /* ── Geofence List Download (Direct) ── */
 
     const dlGeofenceList = async () => {
@@ -1168,7 +1285,7 @@ export function Reports() {
                             {downloading ? (
                                 <>
                                     <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                                    Processing...
+                                    {downloadProgress || "Processing..."}
                                 </>
                             ) : !selectedReport.hasApi ? (
                                 <>Coming Soon</>

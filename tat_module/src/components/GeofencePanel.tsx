@@ -1,0 +1,440 @@
+'use client';
+
+import React, { useState } from 'react';
+import {
+    MapPin, Plus, Trash2, Clock, ArrowLeft,
+    Anchor, Files, Warehouse, Truck, Target,
+    ArrowDownRight, ArrowUpRight, Hexagon, Route, Circle,
+} from 'lucide-react';
+import type { Geofence, CreateZonePayload, GeofenceCategory } from '../types/geofence';
+
+type PanelView = 'list' | 'create' | 'detail';
+
+interface GeofencePanelProps {
+    zones: Geofence[];
+    selectedZoneId: number | null;
+
+    trackerLabels: Record<number, string>;
+    onSelectZone: (zoneId: number | null) => void;
+    onCreateZone: (payload: CreateZonePayload) => Promise<number | null>;
+    onDeleteZone: (zoneId: number) => Promise<boolean>;
+    onStartDrawing: (mode: 'polygon' | 'corridor' | 'circle') => void;
+    onCancelDrawing: () => void;
+    drawnPayload?: CreateZonePayload | null;
+}
+
+const categoryIcons: Record<GeofenceCategory, React.ReactNode> = {
+    port: <Anchor size={14} className="text-blue-600" />,
+    border: <Files size={14} className="text-amber-600" />,
+    warehouse: <Warehouse size={14} className="text-purple-600" />,
+    mining: <Truck size={14} className="text-slate-600" />,
+    depot: <Target size={14} className="text-emerald-600" />,
+    custom: <MapPin size={14} className="text-sky-600" />,
+};
+
+const categoryLabels: Record<GeofenceCategory, string> = {
+    port: 'Port / Terminal',
+    border: 'Border / Customs',
+    warehouse: 'Warehouse / Hub',
+    mining: 'Mining Site',
+    depot: 'Depot',
+    custom: 'Custom Zone',
+};
+
+
+
+export default function GeofencePanel({
+    zones, selectedZoneId, trackerLabels,
+    onSelectZone, onCreateZone, onDeleteZone, onStartDrawing, onCancelDrawing,
+    drawnPayload
+}: GeofencePanelProps) {
+    const [view, setView] = useState<PanelView>('list');
+    const [createForm, setCreateForm] = useState({
+        name: '',
+        category: 'custom' as GeofenceCategory,
+        type: 'polygon' as 'polygon' | 'corridor' | 'circle',
+        radius: 500,
+    });
+    const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    // Force re-render every minute for duration updates
+    const [, setTick] = useState(0);
+    React.useEffect(() => {
+        const timer = setInterval(() => setTick(t => t + 1), 60000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const selectedZone = zones.find(z => z.id === selectedZoneId);
+
+    React.useEffect(() => {
+        if (selectedZoneId && view === 'list') {
+            setView('detail');
+        }
+    }, [selectedZoneId]);
+
+    const handleZoneClick = (zoneId: number) => {
+        onSelectZone(zoneId);
+        setView('detail');
+    };
+
+    const handleDelete = async (zoneId: number) => {
+        setDeleting(true);
+        await onDeleteZone(zoneId);
+        setDeleting(false);
+        setView('list');
+    };
+
+    const handleStartDraw = () => {
+        onStartDrawing(createForm.type);
+    };
+
+    const handleSaveZone = async () => {
+        if (!createForm.name.trim()) return;
+        setSaving(true);
+
+        let payload: CreateZonePayload;
+        if (drawnPayload) {
+            payload = { ...drawnPayload, label: createForm.name.trim(), category: createForm.category, color: '#3b82f6' };
+        } else if (createForm.type === 'circle') {
+            setSaving(false);
+            return;
+        } else {
+            setSaving(false);
+            return;
+        }
+
+        await onCreateZone(payload);
+        setSaving(false);
+        setCreateForm({ name: '', category: 'custom', type: 'polygon', radius: 500 });
+        onCancelDrawing();
+        setView('list');
+    };
+
+    // LIST VIEW
+    if (view === 'list') {
+        return (
+            <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 bg-slate-50 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900">Geofence Zones</h2>
+                        <p className="text-xs text-slate-500">{zones.length} zones configured</p>
+                    </div>
+                    <div className="flex gap-2">
+
+                        <button
+                            onClick={() => setView('create')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <Plus size={12} /> Add Zone
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {zones.length === 0 ? (
+                        <div className="text-center py-12">
+                            <MapPin className="mx-auto text-slate-300 mb-3" size={32} />
+                            <p className="text-sm font-medium text-slate-500">No geofence zones</p>
+                            <p className="text-xs text-slate-400 mt-1">Create your first zone to start monitoring</p>
+                            <button
+                                onClick={() => setView('create')}
+                                className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
+                            >
+                                <Plus size={12} className="inline mr-1" /> Create Zone
+                            </button>
+                        </div>
+                    ) : (
+                        zones.map(zone => (
+                            <div
+                                key={zone.id}
+                                onClick={() => handleZoneClick(zone.id)}
+                                className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedZoneId === zone.id
+                                    ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50/50'
+                                    : 'border-gray-200 hover:border-blue-300 hover:shadow-sm bg-white'
+                                    }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }}></div>
+                                        <div className="flex items-center gap-1.5">
+                                            {categoryIcons[zone.category]}
+                                            <span className="text-sm font-medium text-slate-800 truncate">{zone.name}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[10px] uppercase text-slate-400 font-medium">
+                                            {zone.type === 'sausage' ? 'corridor' : zone.type}
+                                        </span>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${zone.vehicleCount > 0
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-slate-100 text-slate-500'
+                                            }`}>
+                                            {zone.vehicleCount}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // CREATE VIEW
+    if (view === 'create') {
+        return (
+            <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 bg-slate-50 flex items-center gap-3">
+                    <button
+                        onClick={() => { setView('list'); onCancelDrawing(); }}
+                        className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 text-slate-600"
+                    >
+                        <ArrowLeft size={16} />
+                    </button>
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900">Create Geofence</h2>
+                        <p className="text-xs text-slate-500">Draw a zone on the map</p>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Zone Name</label>
+                        <input
+                            type="text"
+                            value={createForm.name}
+                            onChange={e => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="e.g., Dar es Salaam Port Terminal"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Category</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {(Object.keys(categoryLabels) as GeofenceCategory[]).map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setCreateForm(prev => ({ ...prev, category: cat }))}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${createForm.category === cat
+                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                        : 'border-gray-200 text-slate-600 hover:border-blue-300'
+                                        }`}
+                                >
+                                    {categoryIcons[cat]}
+                                    {categoryLabels[cat]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Zone Shape</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {[
+                                { value: 'polygon' as const, label: 'Polygon', icon: <Hexagon size={14} /> },
+                                { value: 'corridor' as const, label: 'Corridor', icon: <Route size={14} /> },
+                                { value: 'circle' as const, label: 'Circle', icon: <Circle size={14} /> },
+                            ].map(opt => (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => setCreateForm(prev => ({ ...prev, type: opt.value }))}
+                                    className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border text-xs font-medium transition-all ${createForm.type === opt.value
+                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                        : 'border-gray-200 text-slate-600 hover:border-blue-300'
+                                        }`}
+                                >
+                                    {opt.icon}
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {(createForm.type === 'circle' || createForm.type === 'corridor') && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                                {createForm.type === 'circle' ? 'Radius' : 'Corridor Width'} (meters)
+                            </label>
+                            <input
+                                type="number"
+                                value={createForm.radius}
+                                onChange={e => setCreateForm(prev => ({ ...prev, radius: Number(e.target.value) }))}
+                                min={50}
+                                max={50000}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    )}
+
+                    {!drawnPayload ? (
+                        <button
+                            onClick={handleStartDraw}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-white text-sm font-bold rounded-lg hover:bg-slate-900 transition-colors"
+                        >
+                            <MapPin size={16} /> Draw on Map
+                        </button>
+                    ) : (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                            <p className="text-xs font-bold text-green-700">Zone drawn on map</p>
+                            <p className="text-[10px] text-green-600 mt-0.5">
+                                {drawnPayload.type === 'polygon' && drawnPayload.points && `${drawnPayload.points.length} points`}
+                                {(drawnPayload.type === 'sausage' || drawnPayload.type === 'corridor') && drawnPayload.points && `${drawnPayload.points.length} waypoints`}
+                                {drawnPayload.type === 'circle' && `${drawnPayload.radius}m radius`}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-gray-100">
+                    <button
+                        onClick={handleSaveZone}
+                        disabled={!createForm.name.trim() || !drawnPayload || saving}
+                        className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {saving ? 'Saving...' : 'Save Geofence to Navixy'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // DETAIL VIEW
+    // DETAIL VIEW
+    if (view === 'detail' && selectedZone) {
+        return (
+            <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 bg-slate-50 flex items-center gap-3">
+                    <button
+                        onClick={() => { setView('list'); onSelectZone(null); }}
+                        className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 text-slate-600"
+                    >
+                        <ArrowLeft size={16} />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <h2 className="text-sm font-bold text-slate-900 truncate">{selectedZone.name}</h2>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            {categoryIcons[selectedZone.category]}
+                            <span className="text-xs text-slate-500">
+                                {categoryLabels[selectedZone.category]} &middot; {selectedZone.type === 'sausage' ? 'Corridor' : selectedZone.type}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-100">
+                            <div className="text-2xl font-black text-blue-700">{selectedZone.vehicleCount}</div>
+                            <div className="text-[10px] text-blue-500 font-bold uppercase">Vehicles Inside</div>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-100">
+                            <div className="text-2xl font-black text-slate-700">
+                                {selectedZone.radius ? `${(selectedZone.radius / 1000).toFixed(1)}km` : '--'}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-bold uppercase">
+                                {selectedZone.type === 'sausage' ? 'Width' : 'Radius'}
+                            </div>
+                        </div>
+                    </div>
+
+                    {selectedZone.vehicleIds.length > 0 && (
+                        <div>
+                            <h3 className="text-xs font-bold text-slate-600 mb-2">Vehicles Currently Inside</h3>
+                            <div className="space-y-1">
+                                {selectedZone.vehicleIds.map(tId => {
+                                    const occupant = selectedZone.occupants?.[tId];
+                                    const now = Date.now();
+                                    const durationMs = occupant ? now - occupant.entryTime : 0;
+
+                                    // Helper for formatting
+                                    const formatDwellTime = (ms: number) => {
+                                        if (ms < 60000) return 'Just now';
+                                        const totalMins = Math.floor(ms / 60000);
+                                        const totalHrs = Math.floor(totalMins / 60);
+                                        const totalDays = Math.floor(totalHrs / 24);
+
+                                        if (totalDays >= 365) {
+                                            const y = Math.floor(totalDays / 365);
+                                            const remDays = totalDays % 365;
+                                            const mo = Math.floor(remDays / 30);
+                                            const d = remDays % 30;
+                                            return `${y}y ${mo}mo ${d}d`;
+                                        }
+                                        if (totalDays >= 30) {
+                                            const mo = Math.floor(totalDays / 30);
+                                            const d = totalDays % 30;
+                                            return `${mo}mo ${d}d`;
+                                        }
+                                        if (totalDays >= 1) {
+                                            const h = totalHrs % 24;
+                                            return `${totalDays}d ${h}h`;
+                                        }
+                                        if (totalHrs > 0) {
+                                            return `${totalHrs}h ${totalMins % 60}m`;
+                                        }
+                                        return `${totalMins}m`;
+                                    };
+
+                                    const durationStr = formatDwellTime(durationMs);
+
+                                    // Severity color
+                                    let dotColor = 'bg-blue-500';
+                                    let timerColor = 'text-slate-400';
+
+                                    if (durationMs > 4 * 60 * 60 * 1000) { // > 4 hours
+                                        dotColor = 'bg-red-500';
+                                        timerColor = 'text-red-500';
+                                    } else if (durationMs > 1 * 60 * 60 * 1000) { // > 1 hour
+                                        dotColor = 'bg-amber-500';
+                                        timerColor = 'text-amber-600';
+                                    }
+
+                                    return (
+                                        <div key={tId} className="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-100">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${dotColor} ${durationMs < 60000 ? 'animate-pulse' : ''}`}></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-medium text-slate-700">
+                                                        {trackerLabels[tId] || `Tracker #${tId}`}
+                                                    </span>
+                                                    {occupant?.status && (
+                                                        <span className="text-[10px] text-slate-400 font-medium">
+                                                            {occupant.status}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Clock size={10} className={timerColor} />
+                                                <span className={`text-[10px] font-bold ${timerColor}`}>
+                                                    {durationStr}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-gray-100">
+                    <button
+                        onClick={() => handleDelete(selectedZone.id)}
+                        disabled={deleting}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                    >
+                        <Trash2 size={12} /> {deleting ? 'Deleting...' : 'Delete Zone from Navixy'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return null;
+}
+
+

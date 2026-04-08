@@ -44,7 +44,7 @@ function Layout() {
   const searchParams = new URLSearchParams(location.search);
   const isLocked = searchParams.get('view') === 'locked';
 
-  const hideSidebarRoutes = ["/fleet-ai", "/contact"];
+  const hideSidebarRoutes = ["/contact"];
   const showSidebar = !hideSidebarRoutes.includes(location.pathname) && !isLocked;
 
   return (
