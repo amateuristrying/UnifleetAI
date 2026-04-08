@@ -796,92 +796,136 @@ export function Reports() {
     };
 
     const dlLiveStatus = async () => {
-        setDownloadProgress("Fetching live fleet data...");
+        const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+        if (!MAPBOX_TOKEN) {
+            console.error("Missing Mapbox token for reverse geocoding");
+        }
+
+        setDownloadProgress("Fetching fleet data...");
         const viewName = ops === 'zambia' ? 'v_zambia_fleet_latest' : 'v_tanzania_fleet_latest';
         const regionCode = ops === 'zambia' ? 'ZM' : 'TZ';
 
-        const { data, error } = await supabase
+        const { data: fleet, error } = await supabase
             .from(viewName)
             .select('*');
 
-        if (error) throw error;
-        if (!data || data.length === 0) return alert("No live fleet data found.");
+        if (error) {
+            alert("Failed to fetch live fleet data.");
+            throw error;
+        }
+        if (!fleet || fleet.length === 0) return alert("No live fleet data found.");
 
-        let rows = [...data];
+        let rows = [...fleet];
 
-        // Deduplicate coordinates for geocoding
-        const uniqueCoords = new Map<string, { lat: number; lng: number }>();
-        rows.forEach(r => {
-            if (r.lat && r.lng) {
-                const key = `${r.lat},${r.lng}`;
-                if (!uniqueCoords.has(key)) {
-                    uniqueCoords.set(key, { lat: r.lat, lng: r.lng });
+        setDownloadProgress("Checking geofence status...");
+        const { data: activeGeofences, error: gfError } = await supabase
+            .from('live_geofence')
+            .select('tracker_id, geofence_name, entry_time, exit_time')
+            .gte('exit_time', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+            .order('entry_time', { ascending: false });
+
+        if (gfError) {
+            console.error("Failed to fetch live_geofence data:", gfError);
+        }
+
+        const geofenceMap = new Map<number, string>();
+        if (activeGeofences) {
+            for (const visit of activeGeofences) {
+                if (!geofenceMap.has(visit.tracker_id)) {
+                    geofenceMap.set(visit.tracker_id, visit.geofence_name);
                 }
-            }
-        });
-
-        const coordToLocation = new Map<string, string>();
-        const coordsArray = Array.from(uniqueCoords.entries());
-
-        for (let i = 0; i < coordsArray.length; i++) {
-            const [key, { lat, lng }] = coordsArray[i];
-            setDownloadProgress(`Geocoding locations (${i + 1}/${coordsArray.length})...`);
-
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
-                    headers: { 'User-Agent': 'UnifleetApp/1.0' }
-                });
-                if (res.ok) {
-                    const json = await res.json();
-                    const addr = json?.address;
-                    if (!addr) {
-                        coordToLocation.set(key, json?.display_name || "Location unavailable");
-                    } else {
-                        // Place part: focus on PoIs, roads, or suburbs
-                        const place = addr.amenity || addr.tourism || addr.industrial || addr.commercial || addr.retail || addr.road || addr.suburb || addr.neighbourhood || addr.village || addr.town || addr.city;
-                        
-                        // Area part: focus on major administrative regions
-                        const area = addr.province || addr.state || addr.region || addr.district || addr.county;
-                        
-                        const country = addr.country;
-                        
-                        const parts = [];
-                        if (place) parts.push(place);
-                        if (area && area !== place) parts.push(area);
-                        if (country) parts.push(country);
-                        
-                        const locationStr = parts.length > 0 ? parts.join(", ") : "Location unavailable";
-                        coordToLocation.set(key, locationStr);
-                    }
-                } else {
-                    coordToLocation.set(key, "Location unavailable");
-                }
-            } catch (err) {
-                console.error(`Geocoding failed for ${key}:`, err);
-                coordToLocation.set(key, "Location unavailable");
-            }
-
-            // Respect rate limit: 1 request per second
-            if (i < coordsArray.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
-        // Map locations back to rows
-        const finalRows = rows.map(r => ({
-            tracker_id: r.tracker_id,
-            tracker_name: r.tracker_name,
-            ops_region: r.ops_region,
-            location: (r.lat && r.lng) ? (coordToLocation.get(`${r.lat},${r.lng}`) || "Location unavailable") : "No coordinates",
-            lat: r.lat,
-            lng: r.lng,
-            speed: r.speed,
-            movement_status: r.movement_status,
-            ignition: r.ignition,
-            connection_status: r.connection_status,
-            last_seen_date: r.last_seen_date,
-            last_seen_time: r.last_seen_time,
-        }));
+        // Build unique coordinate pairs for non-geofenced vehicles only
+        const uniqueCoords = new Map<string, string | null>(); // key: "lat,lng" → value: location string
+
+        for (const vehicle of rows) {
+            if (geofenceMap.has(vehicle.tracker_id)) continue;
+            
+            if (vehicle.lat && vehicle.lng) {
+                const key = `${vehicle.lat},${vehicle.lng}`;
+                if (!uniqueCoords.has(key)) {
+                    uniqueCoords.set(key, null); // placeholder
+                }
+            }
+        }
+
+        const coordsArray = Array.from(uniqueCoords.keys());
+        
+        // Geocode only unique coordinates
+        for (let i = 0; i < coordsArray.length; i++) {
+            const key = coordsArray[i];
+            const [latStr, lngStr] = key.split(',');
+            setDownloadProgress(`Geocoding locations... (${i + 1}/${coordsArray.length} unique coordinates)`);
+
+            let location = 'Location unavailable';
+            if (MAPBOX_TOKEN) {
+                try {
+                    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lngStr},${latStr}.json?access_token=${MAPBOX_TOKEN}&types=place,locality,region,country&language=en`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json.features && json.features.length > 0) {
+                            let placeName = '';
+                            let regionName = '';
+                            let countryName = '';
+
+                            for (const feature of json.features) {
+                                if (feature.place_type.includes('place') || feature.place_type.includes('locality')) {
+                                    if (!placeName) placeName = feature.text;
+                                }
+                                if (feature.place_type.includes('region')) {
+                                    if (!regionName) regionName = feature.text;
+                                }
+                                if (feature.place_type.includes('country')) {
+                                    if (!countryName) countryName = feature.text;
+                                }
+                            }
+                            
+                            const parts = [placeName, regionName, countryName].filter(Boolean);
+                            if (parts.length > 0) {
+                                location = parts.join(', ');
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Mapbox reverse geocoding failed for ${key}:`, err);
+                }
+            }
+
+            uniqueCoords.set(key, location);
+            
+            // 100ms delay between calls to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        setDownloadProgress("Building CSV...");
+
+        // Then assign locations back to vehicles
+        const finalRows = rows.map(vehicle => {
+            let finalLocation = 'Location unavailable';
+            if (geofenceMap.has(vehicle.tracker_id)) {
+                finalLocation = geofenceMap.get(vehicle.tracker_id) || 'Location unavailable';
+            } else if (vehicle.lat && vehicle.lng) {
+                const key = `${vehicle.lat},${vehicle.lng}`;
+                finalLocation = uniqueCoords.get(key) || 'Location unavailable';
+            }
+            
+            return {
+                tracker_id: vehicle.tracker_id,
+                tracker_name: vehicle.tracker_name,
+                ops_region: vehicle.ops_region,
+                location: finalLocation,
+                lat: vehicle.lat,
+                lng: vehicle.lng,
+                speed: vehicle.speed,
+                movement_status: vehicle.movement_status,
+                ignition: vehicle.ignition,
+                connection_status: vehicle.connection_status,
+                last_seen_date: vehicle.last_seen_date,
+                last_seen_time: vehicle.last_seen_time,
+            };
+        });
 
         const columnsOrder = [
             "tracker_id", "tracker_name", "ops_region", "location", "lat", "lng",
@@ -890,7 +934,11 @@ export function Reports() {
         ];
 
         const csv = Papa.unparse(finalRows, { columns: columnsOrder });
-        const dateStr = new Date().toISOString().split('T')[0];
+        
+        // Use today's date in EAT (East Africa Time) which is UTC+3
+        const nowEAT = new Date(Date.now() + 3 * 60 * 60 * 1000);
+        const dateStr = nowEAT.toISOString().split('T')[0];
+        
         downloadBlob(csv, `live_status_${regionCode}_${dateStr}.csv`);
     };
 
