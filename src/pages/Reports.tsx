@@ -23,6 +23,8 @@ import {
     List,
     Smartphone,
     Activity,
+    Lock,
+    BarChart3,
     type LucideIcon,
 } from "lucide-react";
 import { NavixyService } from "../services/navixy";
@@ -38,12 +40,14 @@ import { supabase } from "../lib/supabase";
 interface ReportDef {
     id: string;
     title: string;
+    subtitle?: string;
     icon: LucideIcon;
     color: string;        // icon bg color class
     iconColor: string;    // icon text color class
     hasTimeframe: boolean;
     hasApi: boolean;       // false = "Coming Soon"
     description: string;   // About this report text
+    tzOnly?: boolean;      // true = only available for TZ ops
 }
 
 const REPORT_TYPES: ReportDef[] = [
@@ -196,6 +200,18 @@ const REPORT_TYPES: ReportDef[] = [
         hasTimeframe: false,
         hasApi: true,
         description: "A real-time snapshot of the current location, status, and sensor readings for all active devices. Download immediately as CSV.",
+    },
+    {
+        id: "geofence-asset-count",
+        title: "Geofence Asset Count",
+        subtitle: "Live snapshot of vehicle distribution across all geofences",
+        icon: BarChart3,
+        color: "bg-cyan-500/10 dark:bg-cyan-500/20",
+        iconColor: "text-cyan-600 dark:text-cyan-400",
+        hasTimeframe: false,
+        hasApi: true,
+        description: "Live snapshot of vehicle distribution across all geofences. Shows parent/child geofence hierarchy with vehicle counts, moving and parked breakdowns. TZ Ops only.",
+        tzOnly: true,
     },
 ];
 
@@ -388,6 +404,9 @@ export function Reports() {
                     break;
                 case "live-status-report":
                     await dlLiveStatus();
+                    break;
+                case "geofence-asset-count":
+                    await dlGeofenceAssetCount();
                     break;
             }
         } catch (err) {
@@ -992,6 +1011,69 @@ export function Reports() {
         }
     };
 
+    /* ── Geofence Asset Count Download (TZ Only) ── */
+    const dlGeofenceAssetCount = async () => {
+        setDownloadProgress("Preparing geofence snapshot...");
+
+        // Fetch fleet summary from dashboard view
+        const { data: dashData, error: dashError } = await supabase
+            .from('v_geofence_dashboard')
+            .select('total_fleet, total_in_geofences, pct_in_geofence')
+            .limit(1);
+
+        if (dashError) {
+            console.error('Failed to fetch dashboard summary:', dashError);
+        }
+
+        const totalFleet = dashData?.[0]?.total_fleet ?? 0;
+        const totalIn = dashData?.[0]?.total_in_geofences ?? 0;
+        const pctIn = dashData?.[0]?.pct_in_geofence ?? 0;
+        const onRoad = totalFleet - totalIn;
+        const pctOnRoad = totalFleet > 0 ? Math.round((onRoad / totalFleet) * 100) : 0;
+
+        // Fetch CSV rows from report view
+        const { data: rows, error: reportError } = await supabase
+            .from('v_geofence_report_csv')
+            .select('*')
+            .order('row_type', { ascending: true });
+
+        if (reportError) {
+            alert('Failed to fetch geofence report data.');
+            throw reportError;
+        }
+
+        if (!rows || rows.length === 0) {
+            return alert('No geofence report data available.');
+        }
+
+        // Build EAT timestamp
+        const nowEAT = new Date(Date.now() + 3 * 60 * 60 * 1000);
+        const dateStr = nowEAT.toISOString().split('T')[0];
+        const timeStr = `${String(nowEAT.getUTCHours()).padStart(2, '0')}:${String(nowEAT.getUTCMinutes()).padStart(2, '0')} EAT`;
+        const fileTimeStr = `${String(nowEAT.getUTCHours()).padStart(2, '0')}-${String(nowEAT.getUTCMinutes()).padStart(2, '0')}`;
+
+        // Build CSV manually with header lines
+        const headerLine1 = `Geofence Asset Count Snapshot — ${dateStr} ${timeStr}`;
+        const headerLine2 = `Total Fleet: ${totalFleet} | In Geofences: ${totalIn} (${Math.round(pctIn)}%) | On Road: ${onRoad} (${pctOnRoad}%)`;
+        const csvHeader = 'Role,Geofence Name,Type,Parent Geofence,Total Vehicles,Moving,Parked';
+
+        const csvRows = rows.map((r: any) => {
+            const role = r.geofence_role || '';
+            const name = (r.geofence_name || '').replace(/,/g, ' ');
+            const type = (r.geofence_type || '').replace(/,/g, ' ');
+            const parent = (r.parent_geofence || '').replace(/,/g, ' ');
+            const vehicles = r.vehicle_count ?? 0;
+            const moving = r.moving ?? 0;
+            const parked = r.parked ?? 0;
+            return `${role},${name},${type},${parent},${vehicles},${moving},${parked}`;
+        });
+
+        const csvContent = [headerLine1, headerLine2, '', csvHeader, ...csvRows].join('\n');
+        const filename = `geofence_asset_count_${dateStr}_${fileTimeStr}.csv`;
+
+        downloadBlob(csvContent, filename);
+    };
+
     /* ── Tracker List Download (Direct API) ── */
     const dlTrackerList = async () => {
         const SESSION_KEYS = {
@@ -1106,10 +1188,14 @@ export function Reports() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full content-start">
                             {REPORT_TYPES.map((report) => {
                                 const Icon = report.icon;
+                                const isTzLocked = report.tzOnly && ops !== 'tanzania';
                                 return (
                                     <button
                                         key={report.id}
+                                        disabled={isTzLocked}
+                                        title={isTzLocked ? 'Available for TZ Ops only' : undefined}
                                         onClick={() => {
+                                            if (isTzLocked) return;
                                             if (report.id === 'geofence-list') {
                                                 handleDownloadGeofenceList();
                                             } else if (report.id === 'tracker-list') {
@@ -1117,22 +1203,46 @@ export function Reports() {
                                                     setDownloading(true);
                                                     dlTrackerList().finally(() => setDownloading(false));
                                                 }
+                                            } else if (report.id === 'geofence-asset-count') {
+                                                if (!downloading) {
+                                                    setDownloading(true);
+                                                    setDownloadProgress("Preparing geofence snapshot...");
+                                                    dlGeofenceAssetCount().finally(() => {
+                                                        setDownloading(false);
+                                                        setDownloadProgress("");
+                                                    });
+                                                }
                                             } else {
                                                 openReport(report);
                                             }
                                         }}
-                                        className="relative bg-surface-card rounded-xl border border-border p-5 flex flex-col items-start hover:shadow-lg hover:border-primary/20 transition-all duration-200 group text-left"
+                                        className={cn(
+                                            "relative bg-surface-card rounded-xl border border-border p-5 flex flex-col items-start transition-all duration-200 group text-left",
+                                            isTzLocked
+                                                ? "opacity-50 cursor-not-allowed"
+                                                : "hover:shadow-lg hover:border-primary/20"
+                                        )}
                                     >
                                         {/* Top Row: Icon + Title + Status */}
                                         <div className="flex items-center w-full gap-4 mb-2">
-                                            <div className={cn("p-3 rounded-lg flex-shrink-0", report.color)}>
-                                                <Icon size={26} strokeWidth={1.5} className={report.iconColor} />
+                                            <div className={cn("p-3 rounded-lg flex-shrink-0", isTzLocked ? "bg-muted" : report.color)}>
+                                                <Icon size={26} strokeWidth={1.5} className={isTzLocked ? "text-muted-foreground" : report.iconColor} />
                                             </div>
 
                                             <div className="flex-1 min-w-0 flex items-center justify-between">
-                                                <h3 className="text-lg font-semibold text-foreground leading-tight group-hover:text-primary transition-colors truncate pr-4">
-                                                    {report.title}
-                                                </h3>
+                                                <div className="min-w-0">
+                                                    <h3 className={cn(
+                                                        "text-lg font-semibold leading-tight truncate pr-4 transition-colors",
+                                                        isTzLocked ? "text-muted-foreground" : "text-foreground group-hover:text-primary"
+                                                    )}>
+                                                        {report.title}
+                                                    </h3>
+                                                    {report.subtitle && (
+                                                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                                            {report.subtitle}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -1142,12 +1252,20 @@ export function Reports() {
                                             </div>
                                         )}
 
+                                        {isTzLocked && (
+                                            <div className="absolute top-4 right-4">
+                                                <Lock size={14} className="text-muted-foreground/50" />
+                                            </div>
+                                        )}
+
                                         {/* Description + Chevron/Download Row */}
                                         <div className="w-full pl-1 flex items-center justify-between mt-1">
                                             <p className="text-xs text-muted-foreground truncate flex-1">
-                                                {(report.id === 'geofence-list' || report.id === 'tracker-list') ? "Click to download directly" : (report.hasApi ? "Click to download" : "Coming soon")}
+                                                {isTzLocked ? "Available for TZ Ops only" : (report.id === 'geofence-list' || report.id === 'tracker-list' || report.id === 'geofence-asset-count') ? "Click to download directly" : (report.hasApi ? "Click to download" : "Coming soon")}
                                             </p>
-                                            {(report.id === 'geofence-list' || report.id === 'tracker-list') ? (
+                                            {isTzLocked ? (
+                                                <Lock size={16} className="text-muted-foreground/30 flex-shrink-0 ml-2" />
+                                            ) : (report.id === 'geofence-list' || report.id === 'tracker-list' || report.id === 'geofence-asset-count') ? (
                                                 <Download
                                                     size={18}
                                                     className={cn(

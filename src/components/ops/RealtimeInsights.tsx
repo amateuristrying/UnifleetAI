@@ -16,6 +16,7 @@ import {
 import type { FleetAnalysis, ZoneType, ActionItem } from '@/types/fleet-analysis';
 import type { Geofence } from '@/types/geofence';
 import { cn } from '@/lib/utils';
+import GeofenceAssetCount from './GeofenceAssetCount';
 
 interface RealtimeInsightsProps {
     analysis: FleetAnalysis | null;
@@ -263,6 +264,11 @@ export default function RealtimeInsights({
                             </div>
                         )}
                     </div>
+                </div>
+
+                {/* Geofence Asset Count Section */}
+                <div className="flex justify-center">
+                    <GeofenceAssetCount />
                 </div>
             </div>
         );
