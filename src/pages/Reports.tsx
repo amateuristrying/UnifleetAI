@@ -1015,22 +1015,6 @@ export function Reports() {
     const dlGeofenceAssetCount = async () => {
         setDownloadProgress("Preparing geofence snapshot...");
 
-        // Fetch fleet summary from dashboard view
-        const { data: dashData, error: dashError } = await supabase
-            .from('v_geofence_dashboard')
-            .select('total_fleet, total_in_geofences, pct_in_geofence')
-            .limit(1);
-
-        if (dashError) {
-            console.error('Failed to fetch dashboard summary:', dashError);
-        }
-
-        const totalFleet = dashData?.[0]?.total_fleet ?? 0;
-        const totalIn = dashData?.[0]?.total_in_geofences ?? 0;
-        const pctIn = dashData?.[0]?.pct_in_geofence ?? 0;
-        const onRoad = totalFleet - totalIn;
-        const pctOnRoad = totalFleet > 0 ? Math.round((onRoad / totalFleet) * 100) : 0;
-
         // Fetch CSV rows from report view
         const { data: rows, error: reportError } = await supabase
             .from('v_geofence_report_csv')
@@ -1049,12 +1033,9 @@ export function Reports() {
         // Build EAT timestamp
         const nowEAT = new Date(Date.now() + 3 * 60 * 60 * 1000);
         const dateStr = nowEAT.toISOString().split('T')[0];
-        const timeStr = `${String(nowEAT.getUTCHours()).padStart(2, '0')}:${String(nowEAT.getUTCMinutes()).padStart(2, '0')} EAT`;
         const fileTimeStr = `${String(nowEAT.getUTCHours()).padStart(2, '0')}-${String(nowEAT.getUTCMinutes()).padStart(2, '0')}`;
 
         // Build CSV manually with header lines
-        const headerLine1 = `Geofence Asset Count Snapshot — ${dateStr} ${timeStr}`;
-        const headerLine2 = `Total Fleet: ${totalFleet} | In Geofences: ${totalIn} (${Math.round(pctIn)}%) | On Road: ${onRoad} (${pctOnRoad}%)`;
         const csvHeader = 'Role,Geofence Name,Type,Parent Geofence,Total Vehicles,Moving,Parked';
 
         const csvRows = rows.map((r: any) => {
@@ -1068,7 +1049,7 @@ export function Reports() {
             return `${role},${name},${type},${parent},${vehicles},${moving},${parked}`;
         });
 
-        const csvContent = [headerLine1, headerLine2, '', csvHeader, ...csvRows].join('\n');
+        const csvContent = [csvHeader, ...csvRows].join('\n');
         const filename = `geofence_asset_count_${dateStr}_${fileTimeStr}.csv`;
 
         downloadBlob(csvContent, filename);
