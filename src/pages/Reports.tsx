@@ -1018,8 +1018,7 @@ export function Reports() {
         // Fetch CSV rows from report view
         const { data: rows, error: reportError } = await supabase
             .from('v_geofence_report_csv')
-            .select('*')
-            .order('row_type', { ascending: true });
+            .select('*');
 
         if (reportError) {
             alert('Failed to fetch geofence report data.');
