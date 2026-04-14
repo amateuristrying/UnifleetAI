@@ -107,9 +107,19 @@ async function fetchTrackerList(sessionKey, opsRegion) {
         log.info(`📋 Fetched ${trackers.length} trackers for ${opsRegion}`);
 
         // Populate trackerNameMap and sourceIdToTrackerIdMap for resolution
+        if (trackerNameMapByRegion[opsRegion]) {
+            trackerNameMapByRegion[opsRegion].clear();
+        }
+        if (sourceIdToTrackerIdMapByRegion[opsRegion]) {
+            sourceIdToTrackerIdMapByRegion[opsRegion].clear();
+        }
         trackers.forEach(t => {
-            trackerNameMap.set(t.id, t.label);
-            if (t.source?.id) sourceIdToTrackerIdMap.set(t.source.id, t.id);
+            if (trackerNameMapByRegion[opsRegion]) {
+                trackerNameMapByRegion[opsRegion].set(t.id, t.label);
+            }
+            if (t.source?.id && sourceIdToTrackerIdMapByRegion[opsRegion]) {
+                sourceIdToTrackerIdMapByRegion[opsRegion].set(t.source.id, t.id);
+            }
         });
 
         // Upsert into tracker_registry
@@ -196,8 +206,24 @@ async function fetchZoneList(sessionKey, opsRegion) {
 
 // ─── Tracker Name Map ────────────────────────────────────────────────────────
 // Populated by fetchTrackerList(), used by flushBuffers() to resolve names
-const trackerNameMap = new Map();
-const sourceIdToTrackerIdMap = new Map();
+const trackerNameMapByRegion = {
+    tanzania: new Map(),
+    zambia: new Map(),
+};
+const sourceIdToTrackerIdMapByRegion = {
+    tanzania: new Map(),
+    zambia: new Map(),
+};
+
+// Cache to prevent duplicate identical telemetry inserts
+const telemetryFingerprintCache = {
+    tanzania: new Map(),
+    zambia: new Map(),
+};
+
+function getTelemetryFingerprint(row) {
+    return `${row.tracker_id}:${row.source_id}:${row.gps_updated}:${row.last_update}:${row.lat}:${row.lng}:${row.speed}:${row.heading}:${row.connection_status}:${row.movement_status}:${row.ignition}:${row.battery_level}`;
+}
 
 // ─── Initial State Fetcher (HTTP API) ─────────────────────────────────────────
 
@@ -260,7 +286,7 @@ async function flushBuffers() {
             const row = {
                 tracker_id: trackerId,
                 source_id: sourceId,
-                tracker_name: trackerNameMap.get(trackerId) ?? null,
+                tracker_name: trackerNameMapByRegion[opsRegion]?.get(trackerId) ?? null,
                 ops_region: opsRegion,
                 lat: stateObj.gps?.location?.lat ?? stateObj.lat ?? null,
                 lng: stateObj.gps?.location?.lng ?? stateObj.lng ?? null,
@@ -272,6 +298,13 @@ async function flushBuffers() {
                 battery_level: parseFloat(stateObj.battery_level ?? 0) || 0,
                 gps_updated: stateObj.gps?.updated ?? stateObj.gps_updated ?? null,
                 last_update: stateObj.last_update ?? null,
+                
+                inputs: stateObj.inputs ?? null,
+                outputs: stateObj.outputs ?? null,
+                alt: stateObj.gps?.alt ?? stateObj.alt ?? null,
+                gps_signal_level: stateObj.gps_signal_level ?? null,
+                gsm_signal_level: stateObj.gsm_signal_level ?? null,
+                actual_track_update: stateObj.actual_track_update ?? null,
             };
 
             // For latest_state: add ingested_at + raw_state
@@ -282,10 +315,16 @@ async function flushBuffers() {
             });
 
             // For telemetry: add ingested_at (no raw_state to save space)
-            telemetryRows.push({
-                ...row,
-                ingested_at: now,
-            });
+            const fingerprint = getTelemetryFingerprint(row);
+            const lastFingerprint = telemetryFingerprintCache[opsRegion]?.get(trackerId);
+            
+            if (fingerprint !== lastFingerprint) {
+                telemetryRows.push({
+                    ...row,
+                    ingested_at: now,
+                });
+                telemetryFingerprintCache[opsRegion]?.set(trackerId, fingerprint);
+            }
         }
 
         try {
@@ -456,7 +495,7 @@ class NavixyETLSocket {
             if (Array.isArray(data.data)) {
                 for (const item of data.data) {
                     const sourceId = item.state?.source_id;
-                    const trackerId = sourceIdToTrackerIdMap.get(sourceId);
+                    const trackerId = sourceIdToTrackerIdMapByRegion[this.opsRegion]?.get(sourceId);
                     const stateData = item.state || item;
                     if (stateData && trackerId) {
                         bufferState(trackerId, stateData, this.opsRegion);
@@ -474,7 +513,11 @@ class NavixyETLSocket {
 
         // Also handle source_state_event format (what Navixy actually sends live)
         if (data.type === 'source_state_event') {
-            const trackerId = data.tracker_id;
+            const sourceId = data.state?.source_id ?? data.source_id ?? data.source?.id;
+            const trackerId =
+                data.tracker_id ??
+                sourceIdToTrackerIdMapByRegion[this.opsRegion]?.get(sourceId);
+
             const stateData = data.state || data;
             if (stateData && trackerId) {
                 bufferState(trackerId, stateData, this.opsRegion);
