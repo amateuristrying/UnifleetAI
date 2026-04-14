@@ -222,7 +222,9 @@ const telemetryFingerprintCache = {
 };
 
 function getTelemetryFingerprint(row) {
-    return `${row.tracker_id}:${row.source_id}:${row.gps_updated}:${row.last_update}:${row.lat}:${row.lng}:${row.speed}:${row.heading}:${row.connection_status}:${row.movement_status}:${row.ignition}:${row.battery_level}`;
+    const inputsStr = row.inputs ? JSON.stringify(row.inputs) : 'null';
+    const outputsStr = row.outputs ? JSON.stringify(row.outputs) : 'null';
+    return `${row.tracker_id}:${row.source_id}:${row.ops_region}:${row.gps_updated}:${row.lat}:${row.lng}:${row.speed}:${row.heading}:${row.connection_status}:${row.movement_status}:${row.ignition}:${row.battery_level}:${inputsStr}:${outputsStr}`;
 }
 
 // ─── Initial State Fetcher (HTTP API) ─────────────────────────────────────────
