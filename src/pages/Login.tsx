@@ -8,8 +8,7 @@ import { useTheme } from "@/context/ThemeProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Sidebar } from '@/components/Sidebar';
-import { TopNav } from '@/components/TopNav';
+
 
 /* ─── Feature Highlights for the top info strip ─── */
 const FEATURES = [

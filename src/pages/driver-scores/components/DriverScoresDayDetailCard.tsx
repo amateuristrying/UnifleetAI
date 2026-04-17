@@ -2,7 +2,7 @@ import type { VehicleScoreDayDetail } from "@/types/driverScoresV2";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { 
-  Trophy, Navigation, Zap, Clock, Moon, 
+  Navigation, Zap, Clock, Moon, 
   Brain, Route, Activity, AlertTriangle 
 } from "lucide-react";
 

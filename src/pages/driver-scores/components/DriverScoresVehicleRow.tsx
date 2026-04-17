@@ -7,10 +7,9 @@ interface Props {
   vehicle: DriverScoreVehicleSummary;
   isExpanded: boolean;
   onToggle: () => void;
-  isLast: boolean;
 }
 
-export function DriverScoresVehicleRow({ vehicle, isExpanded, onToggle, isLast }: Props) {
+export function DriverScoresVehicleRow({ vehicle, isExpanded, onToggle }: Props) {
   return (
     <div className={cn(
       "group transition-all duration-300 mb-4 bg-surface-card rounded-2xl border border-border shadow-sm hover:shadow-md hover:border-primary/20",

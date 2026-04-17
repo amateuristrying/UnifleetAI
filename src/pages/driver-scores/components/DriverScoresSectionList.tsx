@@ -65,7 +65,6 @@ export function DriverScoresSectionList({ vehicles }: Props) {
                   vehicle={v} 
                   isExpanded={expandedId === v.tracker_id}
                   onToggle={() => setExpandedId((prev: string | null) => prev === v.tracker_id ? null : v.tracker_id)}
-                  isLast={idx === list.length - 1}
                 />
               ))}
             </div>
