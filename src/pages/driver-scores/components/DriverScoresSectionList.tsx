@@ -59,7 +59,7 @@ export function DriverScoresSectionList({ vehicles }: Props) {
 
             {/* Section Body - Rows */}
             <div className="space-y-1">
-              {list.map((v, idx) => (
+              {list.map((v) => (
                 <DriverScoresVehicleRow 
                   key={v.tracker_id} 
                   vehicle={v} 
