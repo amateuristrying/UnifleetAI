@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 
+import { Sidebar } from '@/components/Sidebar';
+import { TopNav } from '@/components/TopNav';
+
 /* ─── Feature Highlights for the top info strip ─── */
 const FEATURES = [
     { label: 'Live Tracking', color: '#22C55E' },

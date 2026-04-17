@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
-import React from "react";
-import { Trophy, Zap, AlertTriangle, CheckCircle, Ban, ArrowRight, ShieldCheck, Clock, Truck, TrendingDown, Target, ZapOff, Activity, Info } from "lucide-react";
+import { Trophy, Zap, ArrowRight, ShieldCheck, Clock, Truck, Target, Info, Moon } from "lucide-react";
 
 export function DriverScoreLogic() {
     return (
