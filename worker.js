@@ -300,7 +300,7 @@ async function flushBuffers() {
                 battery_level: parseFloat(stateObj.battery_level ?? 0) || 0,
                 gps_updated: stateObj.gps?.updated ?? stateObj.gps_updated ?? null,
                 last_update: stateObj.last_update ?? null,
-                
+
                 inputs: stateObj.inputs ?? null,
                 outputs: stateObj.outputs ?? null,
                 alt: stateObj.gps?.alt ?? stateObj.alt ?? null,
@@ -319,7 +319,7 @@ async function flushBuffers() {
             // For telemetry: add ingested_at (no raw_state to save space)
             const fingerprint = getTelemetryFingerprint(row);
             const lastFingerprint = telemetryFingerprintCache[opsRegion]?.get(trackerId);
-            
+
             if (fingerprint !== lastFingerprint) {
                 telemetryRows.push({
                     ...row,
@@ -606,9 +606,9 @@ async function main() {
     const flushInterval = setInterval(flushBuffers, CONFIG.batchIntervalMs);
     log.info(`Batch flush interval: ${CONFIG.batchIntervalMs}ms`);
 
-    // Delete telemetry older than 24 hours — runs every hour
+    // Delete telemetry older than 36 hours — runs every hour
     setInterval(async () => {
-        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const cutoff = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
         // Delete in batches of 10,000 to avoid long locks
         let deleted = 0;
         do {

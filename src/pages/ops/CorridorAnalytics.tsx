@@ -88,7 +88,7 @@ export default function CorridorAnalytics() {
     }, [viewMode, fetchViewData]);
 
     return (
-        <div className="flex flex-col h-full bg-surface-main p-8 gap-6 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 bg-surface-main p-8 gap-6 overflow-hidden">
             <div className="flex-1 flex flex-col bg-surface-card border border-border rounded-3xl shadow-sm overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-surface-card shrink-0 z-10">

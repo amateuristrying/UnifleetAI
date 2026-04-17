@@ -19,6 +19,7 @@ interface MapboxLayerProps {
     vehicles: Vehicle[];
     selectedVehicleId?: string | null;
     onMarkerClick: (id: string) => void;
+    autoFit?: boolean;
 }
 
 const STATUS_COLORS: Record<VehicleStatus, string> = {
@@ -34,6 +35,7 @@ export function MapboxLayer({
     vehicles,
     selectedVehicleId,
     onMarkerClick,
+    autoFit = false,
 }: MapboxLayerProps) {
     const mapRef = useRef<MapRef>(null);
     const { resolved } = useTheme();
@@ -56,17 +58,34 @@ export function MapboxLayer({
     }, [vehicles]);
 
     useEffect(() => {
-        if (validVehicles.length > 0 && viewState.zoom === 6) {
-            const sumLat = validVehicles.reduce((acc, v) => acc + v.coordinates[0], 0);
-            const sumLng = validVehicles.reduce((acc, v) => acc + v.coordinates[1], 0);
+        if (validVehicles.length > 0 && mapRef.current) {
+            if (autoFit) {
+                const bounds = validVehicles.reduce(
+                    (acc, v) => {
+                        return [
+                            [Math.min(acc[0][0], v.coordinates[1]), Math.min(acc[0][1], v.coordinates[0])],
+                            [Math.max(acc[1][0], v.coordinates[1]), Math.max(acc[1][1], v.coordinates[0])],
+                        ];
+                    },
+                    [[validVehicles[0].coordinates[1], validVehicles[0].coordinates[0]], [validVehicles[0].coordinates[1], validVehicles[0].coordinates[0]]]
+                );
 
-            setViewState(prev => ({
-                ...prev,
-                latitude: sumLat / validVehicles.length,
-                longitude: sumLng / validVehicles.length
-            }));
+                mapRef.current.fitBounds(
+                    [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]],
+                    { padding: 100, duration: 2000 }
+                );
+            } else if (viewState.zoom === 6) {
+                const sumLat = validVehicles.reduce((acc, v) => acc + v.coordinates[0], 0);
+                const sumLng = validVehicles.reduce((acc, v) => acc + v.coordinates[1], 0);
+
+                setViewState(prev => ({
+                    ...prev,
+                    latitude: sumLat / validVehicles.length,
+                    longitude: sumLng / validVehicles.length
+                }));
+            }
         }
-    }, [validVehicles.length > 0]);
+    }, [validVehicles.length, autoFit]);
 
     useEffect(() => {
         if (selectedVehicleId && mapRef.current) {

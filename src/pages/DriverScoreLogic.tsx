@@ -1,160 +1,236 @@
-import { Trophy, Zap, AlertTriangle, CheckCircle, Ban, ArrowRight, ShieldCheck } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import React from "react";
+import { Trophy, Zap, AlertTriangle, CheckCircle, Ban, ArrowRight, ShieldCheck, Clock, Truck, TrendingDown, Target, ZapOff, Activity, Info } from "lucide-react";
 
 export function DriverScoreLogic() {
     return (
-        <div className="flex flex-col h-full bg-surface-main overflow-y-auto">
-            <div className="flex flex-col p-6 gap-6 w-full max-w-5xl mx-auto">
+        <div className="flex flex-col h-full bg-surface-main overflow-y-auto scrollbar-thin">
+            <div className="flex flex-col p-8 gap-10 w-full max-w-6xl mx-auto pb-20">
 
-                {/* Header */}
-                <div className="flex flex-col gap-2 mb-4">
-                    <h1 className="text-3xl font-bold flex items-center gap-3">
-                        <ShieldCheck className="h-8 w-8 text-primary" />
-                        Driver Score Logic
-                    </h1>
-                    <p className="text-lg text-muted-foreground">
-                        Understanding how the Driver Performance Score is calculated.
-                    </p>
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border">
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-3 mb-1">
+                            <div className="bg-primary/10 p-2 rounded-lg">
+                                <ShieldCheck className="h-6 w-6 text-primary" />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Governance & Policy</span>
+                        </div>
+                        <h1 className="text-4xl font-black tracking-tight">Driver Score Logic</h1>
+                        <p className="text-lg text-muted-foreground font-medium max-w-xl">
+                            The Unifleet Scoping engine evaluates driver safety, operational efficiency, and vehicle preservation on a daily basis.
+                        </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 bg-surface-card p-4 rounded-2xl border border-border shadow-sm">
+                        <div className="flex flex-col">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-60">Fleet Threshold</span>
+                            <span className="text-xl font-black text-emerald-500">85+ / 100</span>
+                        </div>
+                        <div className="w-px h-8 bg-border" />
+                        <div className="flex flex-col">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-60">Status</span>
+                            <span className="text-xl font-black text-foreground uppercase tracking-widest">Active</span>
+                        </div>
+                    </div>
                 </div>
 
-                {/* The Formula Card */}
-                <Card className="border-primary/20 bg-primary/5 shadow-md">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-2xl">
-                            <Trophy className="h-6 w-6 text-primary" />
-                            The Formula
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-6 bg-surface-card rounded-xl border shadow-sm">
-                            <div className="flex flex-col items-center">
-                                <span className="text-sm font-semibold uppercase text-muted-foreground tracking-wider">Starting Base</span>
-                                <span className="text-5xl font-extrabold text-blue-600">100</span>
-                            </div>
-                            <ArrowRight className="hidden md:block h-6 w-6 text-muted-foreground" />
-                            <div className="flex flex-col items-center">
-                                <span className="text-sm font-semibold uppercase text-muted-foreground tracking-wider">Penalties</span>
-                                <span className="text-4xl font-bold text-red-500">- Deductions</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-sm font-semibold uppercase text-muted-foreground tracking-wider">Bonuses</span>
-                                <span className="text-4xl font-bold text-green-600">+ Additions</span>
-                            </div>
-                            <ArrowRight className="hidden md:block h-6 w-6 text-muted-foreground" />
-                            <div className="flex flex-col items-center">
-                                <span className="text-sm font-semibold uppercase text-muted-foreground tracking-wider">Final Score</span>
-                                <span className="text-5xl font-extrabold text-primary">0 - 100</span>
-                            </div>
+                {/* The Formula / Core Concept */}
+                <section className="relative overflow-hidden bg-primary/5 rounded-3xl border border-primary/20 p-8 shadow-sm">
+                    <div className="absolute top-0 right-0 p-8 opacity-5">
+                        <Target className="w-64 h-64 text-primary" />
+                    </div>
+                    
+                    <div className="relative z-10 flex flex-col gap-8">
+                        <div>
+                            <h2 className="text-xl font-black flex items-center gap-2 mb-2">
+                                <Trophy className="h-5 w-5 text-primary" />
+                                Scoring Architecture
+                            </h2>
+                            <p className="text-sm text-muted-foreground font-medium">
+                                Every vehicle starts at 100 points each day. Points are deducted for violations and added for discipline milestones.
+                            </p>
                         </div>
-                    </CardContent>
-                </Card>
+                        
+                        <div className="flex flex-col lg:flex-row items-center justify-between gap-4 p-8 bg-surface-card rounded-2xl border border-border shadow-xl">
+                            <FormulaComponent label="Daily Baseline" value="100" sub="Starting Points" color="text-blue-500" />
+                            <FormulaSymbol icon={<ArrowRight className="h-6 w-6" />} />
+                            <FormulaComponent label="Deductions" value="- P" sub="Risk Penalties" color="text-red-500" />
+                            <FormulaSymbol icon={<ArrowRight className="h-6 w-6" />} />
+                            <FormulaComponent label="Additions" value="+ B" sub="Behavior Bonus" color="text-emerald-500" />
+                            <FormulaSymbol icon={<ArrowRight className="h-6 w-6" />} />
+                            <FormulaComponent label="Final Result" value="0 - 100" sub="Safety Index" color="text-primary" />
+                        </div>
+                    </div>
+                </section>
 
-                {/* Detailed Breakdown Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Deep Dive Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-                    {/* Penalties */}
-                    <Card className="border-l-4 border-l-red-500 shadow-sm hover:shadow-md transition-shadow">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-red-600">
-                                <AlertTriangle className="h-5 w-5" />
-                                Penalties (Deductions)
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="flex items-start gap-4">
-                                <div className="bg-red-100 p-3 rounded-lg text-red-600">
-                                    <Zap className="h-6 w-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-lg">Speeding Violations</h3>
-                                    <p className="text-muted-foreground mb-2">Any recorded speed violation event.</p>
-                                    <Badge variant="destructive" className="text-sm px-3 py-1">-5 Points</Badge>
-                                    <span className="text-xs text-muted-foreground ml-2">per violation</span>
-                                </div>
-                            </div>
+                    {/* Penalties Section */}
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest">Penalties</span>
+                            <h3 className="text-lg font-black tracking-tight">Deduction Rules</h3>
+                        </div>
+                        
+                        <div className="grid gap-4">
+                            <PenaltyCard 
+                                icon={<Zap className="h-5 w-5" />} 
+                                title="Speeding Violation" 
+                                desc="Recorded event where vehicle speed exceeds established corridor limits."
+                                penalty="-5"
+                                sub="per violation"
+                            />
+                            <PenaltyCard 
+                                icon={<Clock className="h-5 w-5" />} 
+                                title="Excessive Idling" 
+                                desc="Engine running while stationary for >30 minutes cumulatively in the trip window."
+                                penalty="-2"
+                                sub="per day"
+                            />
+                            <PenaltyCard 
+                                icon={<Moon className="h-5 w-5" />} 
+                                title="Night Driving" 
+                                desc="Unauthorized operation during high-risk night hours (22:00 - 04:00)."
+                                penalty="-10"
+                                sub="at night"
+                            />
+                        </div>
+                    </div>
 
-                            <div className="h-px bg-border/50" />
-
-                            <div className="flex items-start gap-4">
-                                <div className="bg-orange-100 p-3 rounded-lg text-orange-600">
-                                    <Clock className="h-6 w-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-lg">Excessive Idling</h3>
-                                    <p className="text-muted-foreground mb-2">Idling duration exceeding 30 minutes in a single day.</p>
-                                    <Badge className="bg-orange-500 hover:bg-orange-600 text-sm px-3 py-1">-2 Points</Badge>
-                                    <span className="text-xs text-muted-foreground ml-2">per day</span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Bonuses */}
-                    <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-green-600">
-                                <CheckCircle className="h-5 w-5" />
-                                Bonuses (Rewards)
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="flex items-start gap-4">
-                                <div className="bg-green-100 p-3 rounded-lg text-green-600">
-                                    <Truck className="h-6 w-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-lg">Distance Milestone</h3>
-                                    <p className="text-muted-foreground mb-2">Driving more than 50km in a single day.</p>
-                                    <Badge className="bg-green-600 hover:bg-green-700 text-sm px-3 py-1">+1 Point</Badge>
-                                    <span className="text-xs text-muted-foreground ml-2">per day</span>
-                                </div>
-                            </div>
-
-                            <div className="h-px bg-border/50" />
-
-                            <div className="flex items-start gap-4">
-                                <div className="bg-blue-100 p-3 rounded-lg text-blue-600">
-                                    <ShieldCheck className="h-6 w-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-lg">Perfect Safety Day</h3>
-                                    <p className="text-muted-foreground mb-2">Completing a day with ZERO speed violations.</p>
-                                    <Badge className="bg-blue-600 hover:bg-blue-700 text-sm px-3 py-1">+2 Points</Badge>
-                                    <span className="text-xs text-muted-foreground ml-2">per day</span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
+                    {/* Rewards Section */}
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <span className="bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest">Rewards</span>
+                            <h3 className="text-lg font-black tracking-tight">Bonus Milestones</h3>
+                        </div>
+                        
+                        <div className="grid gap-4">
+                            <BonusCard 
+                                icon={<Truck className="h-5 w-5" />} 
+                                title="Operational Reach" 
+                                desc="Daily utilization exceeding 50km total distance with valid task assignment."
+                                bonus="+1"
+                                sub="at 50km"
+                            />
+                            <BonusCard 
+                                icon={<ShieldCheck className="h-5 w-5" />} 
+                                title="Perfect Safety Day" 
+                                desc="ZERO speed violations and zero safety alerts recorded over entire operational window."
+                                bonus="+2"
+                                sub="per day"
+                            />
+                        </div>
+                    </div>
                 </div>
 
-                {/* Additional Rules */}
-                <Card className="bg-muted/30">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                            <Ban className="h-5 w-5 text-muted-foreground" />
-                            Additional Rules
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center gap-3">
-                            <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300">Sundays</Badge>
-                            <span className="text-muted-foreground font-medium">Marked as "No Task Day". Scoring is skipped completely.</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300">Clamping</Badge>
-                            <span className="text-muted-foreground font-medium">The score is strictly clamped. It cannot go above 100 or below 0.</span>
-                        </div>
-                    </CardContent>
-                </Card>
+                {/* Operational Constraints */}
+                <div className="bg-muted/30 rounded-3xl p-8 border border-border">
+                    <h3 className="text-lg font-black flex items-center gap-2 mb-6">
+                        <Info className="h-5 w-5 text-muted-foreground" />
+                        Operational Guardrails
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <RuleItem 
+                            label="Inactive Threshold" 
+                            rule="Movement <5km is considered 'Inactive'. No scores are computed for these days to maintain history integrity."
+                        />
+                        <RuleItem 
+                            label="Hard Clamping" 
+                            rule="Scores are strictly clamped between 0 and 100. Bonus points cannot push index beyond theoretical maximum."
+                        />
+                        <RuleItem 
+                            label="Sunday Policy" 
+                            rule="Sundays are marked as 'Maintenance Reset'. Scoring algorithms are paused unless specialized shifts are defined."
+                        />
+                    </div>
+                </div>
+
+                {/* Risk Buckets Logic */}
+                <div className="space-y-6">
+                    <h3 className="text-lg font-black tracking-tight">UI Classification (Risk Buckets)</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <BucketInfo color="bg-red-500" label="Critical" range="0 - 45" />
+                        <BucketInfo color="bg-amber-500" label="Watchlist" range="46 - 75" />
+                        <BucketInfo color="bg-emerald-500" label="Stable" range="76 - 94" />
+                        <BucketInfo color="bg-indigo-500" label="Elite" range="95 - 100" />
+                    </div>
+                </div>
 
             </div>
         </div>
     );
 }
 
-// Simple Icon Components for internal use if Lucide import fails or for custom styling needed
-// But we used Lucide imports above.
+function FormulaComponent({ label, value, sub, color }: any) {
+    return (
+        <div className="flex flex-col items-center">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">{label}</span>
+            <span className={cn("text-4xl font-black tracking-tighter", color)}>{value}</span>
+            <span className="text-[10px] font-bold text-muted-foreground/40 mt-1">{sub}</span>
+        </div>
+    );
+}
 
-import { Clock, Truck } from "lucide-react";
+function FormulaSymbol({ icon }: any) {
+    return <div className="hidden lg:block text-muted-foreground/30">{icon}</div>;
+}
+
+function PenaltyCard({ icon, title, desc, penalty, sub }: any) {
+    return (
+        <div className="bg-surface-card p-6 rounded-2xl border border-border flex items-start gap-4 transition-all hover:border-red-500/20 hover:shadow-md">
+            <div className="bg-red-500/10 p-2.5 rounded-xl text-red-500 shrink-0">
+                {icon}
+            </div>
+            <div className="flex-1">
+                <h4 className="font-black text-foreground mb-1 leading-none">{title}</h4>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">{desc}</p>
+            </div>
+            <div className="flex flex-col items-end">
+                <span className="text-2xl font-black text-red-500 tracking-tighter">{penalty}</span>
+                <span className="text-[9px] font-black uppercase text-muted-foreground/40">{sub}</span>
+            </div>
+        </div>
+    );
+}
+
+function BonusCard({ icon, title, desc, bonus, sub }: any) {
+    return (
+        <div className="bg-surface-card p-6 rounded-2xl border border-border flex items-start gap-4 transition-all hover:border-emerald-500/20 hover:shadow-md">
+            <div className="bg-emerald-500/10 p-2.5 rounded-xl text-emerald-500 shrink-0">
+                {icon}
+            </div>
+            <div className="flex-1">
+                <h4 className="font-black text-foreground mb-1 leading-none">{title}</h4>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">{desc}</p>
+            </div>
+            <div className="flex flex-col items-end">
+                <span className="text-2xl font-black text-emerald-500 tracking-tighter">{bonus}</span>
+                <span className="text-[9px] font-black uppercase text-muted-foreground/40">{sub}</span>
+            </div>
+        </div>
+    );
+}
+
+function RuleItem({ label, rule }: any) {
+    return (
+        <div className="flex flex-col gap-2">
+            <span className="text-xs font-black uppercase tracking-widest text-foreground">{label}</span>
+            <p className="text-xs text-muted-foreground font-medium leading-relaxed">{rule}</p>
+        </div>
+    );
+}
+
+function BucketInfo({ color, label, range }: any) {
+    return (
+        <div className="bg-surface-card p-4 rounded-xl border border-border flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+                <div className={cn("w-2 h-2 rounded-full", color)} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</span>
+            </div>
+            <span className="text-sm font-black text-foreground tracking-tight">{range} pts</span>
+        </div>
+    );
+}
+

@@ -1,11 +1,11 @@
 // src/components/dashboards/DailyAssetsActiveDashboard.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { LineChart, Line, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { LimitedDateFilter } from './common/LimitedDateFilter';
 import { CustomTooltip } from './common/CustomTooltip';
 import { SmartDateXAxis } from '@/components/SmartDateXAxis';
 import { useOps } from '@/context/OpsContext';
-import { api } from '@/context/config';
+
 
 interface DailyAssetsActiveDashboardProps {
     dateFilter: string;
@@ -19,25 +19,7 @@ interface AssetPoint {
     status?: 'normal' | 'warning' | 'critical';
 }
 
-function smoothSeries(points: AssetPoint[], windowSize = 3): AssetPoint[] {
-    if (points.length < 3 || windowSize <= 1) return points;
 
-    const half = Math.floor(windowSize / 2);
-    return points.map((p, i) => {
-        let sum = 0;
-        let count = 0;
-
-        for (let k = i - half; k <= i + half; k++) {
-            if (k >= 0 && k < points.length) {
-                sum += points[k].assets;
-                count++;
-            }
-        }
-
-        const smoothed = Math.round(sum / Math.max(count, 1));
-        return { ...p, assets: smoothed };
-    });
-}
 
 export function DailyAssetsActiveDashboard({
     dateFilter,
@@ -46,7 +28,9 @@ export function DailyAssetsActiveDashboard({
 }: DailyAssetsActiveDashboardProps) {
     const { ops } = useOps();
     const [rawAssets, setRawAssets] = useState<AssetPoint[]>([]);
+    const [metadata, setMetadata] = useState<{dataAvailableThrough?: string, anchorDate?: string}>({});
     const [loading, setLoading] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
@@ -56,8 +40,22 @@ export function DailyAssetsActiveDashboard({
         const fetchAssetsActive = async (retryCount = 0) => {
             setLoading(true);
             try {
-                const url = api(ops, 'assetsActive');
-                const res = await fetch(url, { method: 'GET', signal: controller.signal });
+                let windowParam = 'last30days';
+                if (dateFilter === '7 days') windowParam = 'last7days';
+                if (dateFilter === 'MTD') windowParam = 'mtd';
+                if (dateFilter === '30 days') windowParam = 'last30days';
+
+                const baseUrl = ops === 'tanzania' 
+                    ? 'https://pjagc4397d.execute-api.ap-south-1.amazonaws.com/assets-active'
+                    : 'https://ds16ac8znh.execute-api.ap-south-1.amazonaws.com/assets-active';
+                const url = new URL(baseUrl);
+                url.searchParams.set('window', windowParam);
+                url.searchParams.set('t', Date.now().toString());
+
+                const res = await fetch(url.toString(), { 
+                    method: 'GET', 
+                    signal: controller.signal
+                });
                 
                 // Handle 503 with retry
                 if (res.status === 503 && retryCount < 1) {
@@ -68,6 +66,12 @@ export function DailyAssetsActiveDashboard({
 
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
+                console.log("ASSETS API RESPONSE:", data);
+                
+                setMetadata({
+                    dataAvailableThrough: data.data_available_through,
+                    anchorDate: data.anchor_date
+                });
 
                 const list: AssetPoint[] = Array.isArray(data?.assets_active)
                     ? data.assets_active.map((d: { date: string; assets: number }) => {
@@ -83,6 +87,7 @@ export function DailyAssetsActiveDashboard({
                 if ((err as Error)?.name !== 'AbortError') {
                     console.error('Failed to fetch assets active', err);
                     setRawAssets([]);
+                    setMetadata({});
                 }
             } finally {
                 setLoading(false);
@@ -91,38 +96,32 @@ export function DailyAssetsActiveDashboard({
 
         fetchAssetsActive();
         return () => controller.abort();
-    }, [ops]);
+    }, [ops, dateFilter]);
 
-    const filteredData = useMemo(() => {
-        if (dateFilter === '7 days') return rawAssets.slice(-7);
-        if (dateFilter === 'MTD') {
-            const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const startOfMonth = `${y}-${m}-01`;
-            // Only filter if we have more than 31 days (trimming excess)
-            if (rawAssets.length > 31) {
-                return rawAssets.filter(p => p.date >= startOfMonth);
-            }
-            return rawAssets;
+    const chartData = rawAssets;
+    const tableData = rawAssets;
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-        return rawAssets;
-    }, [rawAssets, dateFilter]);
-
-    const chartData = useMemo(() => smoothSeries(filteredData, 3), [filteredData]);
-
-    const tableData = useMemo(() => {
-        return chartData.slice(-8);
-    }, [chartData]);
+    }, [tableData]);
 
     return (
         <div className="bg-surface-card rounded-[24px] shadow-lg border border-border p-6 mb-6 pdf-content">
             {/* Header/filter hidden in PDF */}
-            <div data-pdf-hide="true" className="pdf-hide">
-                <div className="bg-muted text-foreground px-4 py-3 rounded-xl inline-block mb-6">
+            <div data-pdf-hide="true" className="pdf-hide mb-6 relative">
+                <div className="bg-muted text-foreground px-4 py-3 rounded-xl inline-flex flex-col mb-4">
                     <h3 className="text-lg font-bold uppercase tracking-wide">DAILY ASSETS ACTIVE</h3>
+                    {metadata.dataAvailableThrough && (
+                        <span className="text-xs text-muted-foreground mt-1 capitalize font-medium">
+                            Data through {new Date(metadata.dataAvailableThrough).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                    )}
                 </div>
-                <LimitedDateFilter title="Daily Assets Active" dateFilter={dateFilter} setDateFilter={setDateFilter} />
+                <div className="block">
+                    <LimitedDateFilter title="Daily Assets Active" dateFilter={dateFilter} setDateFilter={setDateFilter} />
+                </div>
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
@@ -161,28 +160,30 @@ export function DailyAssetsActiveDashboard({
                 </div>
 
                 {/* Table */}
-                <div className="bg-muted/30 rounded-xl p-4 border border-border">
-                    <h4 className="text-sm font-bold uppercase text-muted-foreground mb-4">Recent Data</h4>
+                <div className="bg-muted/30 rounded-xl p-4 border border-border flex flex-col h-[400px]">
+                    <h4 className="text-sm font-bold uppercase text-muted-foreground mb-4 shrink-0">Recent Data</h4>
                     {loading ? (
                         <p className="text-xs italic text-muted-foreground">Loading...</p>
                     ) : (
-                        <div className="text-xs space-y-1">
-                            <div className="grid grid-cols-2 gap-2 font-bold border-b border-border pb-1">
+                        <div className="text-xs flex flex-col flex-1 overflow-hidden">
+                            <div className="grid grid-cols-2 gap-2 font-bold border-b border-border pb-2 shrink-0 mb-2">
                                 <span className="text-foreground">Date</span>
                                 <span className="text-foreground">Assets</span>
                             </div>
-                            {tableData.map((item) => (
-                                <div
-                                    key={item.date}
-                                    className="grid grid-cols-2 gap-2 py-1.5 px-1 rounded bg-surface-card text-foreground"
-                                >
-                                    <span className="text-foreground">{item.date}</span>
-                                    <span className="font-medium text-foreground">{item.assets}</span>
-                                </div>
-                            ))}
-                            {tableData.length === 0 && (
-                                <div className="italic text-muted-foreground py-2">No data</div>
-                            )}
+                            <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar" ref={scrollRef}>
+                                {tableData.map((item) => (
+                                    <div
+                                        key={item.date}
+                                        className="grid grid-cols-2 gap-2 py-1.5 px-1 rounded bg-surface-card text-foreground"
+                                    >
+                                        <span className="text-foreground">{item.date}</span>
+                                        <span className="font-medium text-foreground">{item.assets}</span>
+                                    </div>
+                                ))}
+                                {tableData.length === 0 && (
+                                    <div className="italic text-muted-foreground py-2">No data</div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

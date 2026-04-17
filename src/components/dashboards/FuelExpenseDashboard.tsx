@@ -36,10 +36,36 @@ export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
             try {
                 const base = api(ops, 'fuelExpense').replace(/\/+$/, '');
                 const endpoint = /\/fuel-expense$/.test(base) ? base : `${base}/fuel-expense`;
-                const windowType = dateFilter === "7 days" ? "7d" : dateFilter === "MTD" ? "mtd" : "30d";
-                const url = `${endpoint}?window=${windowType}`;
+                
+                // Use the same window params as the Reports section for better compatibility
+                const windowType = dateFilter === "7 days" ? "last7days" : (dateFilter === "MTD" ? "mtd" : "last30days");
+                const shortWin = windowType === "last7days" ? "7d" : "30d";
+                
+                // Try few common URL patterns as seen in Reports logic
+                const tryUrls = [
+                    `${endpoint}?window=${windowType}&_t=${Date.now()}`,
+                    `${endpoint}?window=${shortWin}&_t=${Date.now()}`,
+                    `${base}?window=${windowType}&_t=${Date.now()}`
+                ];
 
-                const res = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store' });
+                let json: any = null;
+                let res: Response | null = null;
+                
+                for (const url of tryUrls) {
+                    try {
+                        const r = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store' });
+                        if (r.ok) {
+                            res = r;
+                            json = await r.json();
+                            break;
+                        }
+                        if (r.status === 503) res = r; // Keep 503 for retry logic
+                    } catch (e) {
+                        console.warn(`[FuelExpense] Failed to fetch ${url}`, e);
+                    }
+                }
+
+                if (!res) throw new Error("Could not reach any Fuel Expense endpoint");
                 
                 // Handle 503 with retry
                 if (res.status === 503 && retryCount < 1) {
@@ -49,38 +75,49 @@ export const FuelExpenseDashboard: React.FC<FuelExpenseDashboardProps> = ({
                 }
 
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const json = await res.json();
 
-                console.log(`[FuelExpense] URL: ${url}`, json);
+                // Extraction logic mirroring Reports.tsx for maximum accuracy
+                const extractList = (raw: any): any[] => {
+                    if (!raw) return [];
+                    if (Array.isArray(raw)) return raw;
+                    const dashList = windowType === "last7days" ? raw?.results?.last7days?.fuel_expense : raw?.results?.last30days?.fuel_expense;
+                    if (Array.isArray(dashList)) return dashList;
+                    if (Array.isArray(raw?.fuel_expense)) return raw.fuel_expense;
+                    if (Array.isArray(raw?.data?.fuel_expense)) return raw.data.fuel_expense;
+                    if (Array.isArray(raw?.data)) return raw.data;
+                    return [];
+                };
 
-                // New flat format: json.fuel_expense  |  Legacy: json.results.lastXdays.fuel_expense
-                const legacyKey = windowType === '7d' ? 'last7days' : 'last30days';
-                let windowData = json?.fuel_expense
-                    ?? json?.results?.[legacyKey]?.fuel_expense
-                    ?? [];
+                let windowData = extractList(json);
 
                 // For MTD, ensure data starts from 1st of current month
                 if (dateFilter === "MTD" && Array.isArray(windowData)) {
-                    // Only filter if we have more than 31 days (trimming excess)
                     if (windowData.length > 31) {
                         const now = new Date();
                         const y = now.getFullYear();
                         const m = String(now.getMonth() + 1).padStart(2, '0');
                         const startOfMonth = `${y}-${m}-01`;
-                        windowData = windowData.filter((d: any) => String(d.date) >= startOfMonth);
+                        windowData = windowData.filter((d: any) => String(d.date ?? d.day ?? '') >= startOfMonth);
                     }
                 } else if (dateFilter === "30 days" && Array.isArray(windowData)) {
-                    // Strip leading zero-value entries (e.g. ZM backend returning Jan 31 with zeros)
-                    while (windowData.length > 0 && Number(windowData[0]?.motion_usd ?? 0) === 0 && Number(windowData[0]?.idle_usd ?? 0) === 0) {
-                        windowData = windowData.slice(1);
+                    // Strip leading zero-value entries
+                    while (windowData.length > 0) {
+                        const first = windowData[0];
+                        const m = Number(first?.motion_usd ?? first?.motionUSD ?? first?.motion ?? 0);
+                        const i = Number(first?.idle_usd ?? first?.idleUSD ?? first?.idle ?? 0);
+                        if (m === 0 && i === 0) {
+                            windowData = windowData.slice(1);
+                        } else {
+                            break;
+                        }
                     }
                 }
 
                 const processed: FuelExpensePoint[] = Array.isArray(windowData)
-                    ? windowData.map((d: { date: string; motion_usd?: number; idle_usd?: number }) => ({
-                        date: d.date,
-                        motionExpense: Number(d.motion_usd ?? 0),
-                        idlingExpense: Number(d.idle_usd ?? 0),
+                    ? windowData.map((d: any) => ({
+                        date: d.date ?? d.day ?? '',
+                        motionExpense: Number(d.motion_usd ?? d.motionUSD ?? d.motion ?? 0),
+                        idlingExpense: Number(d.idle_usd ?? d.idleUSD ?? d.idle ?? 0),
                     }))
                     : [];
 

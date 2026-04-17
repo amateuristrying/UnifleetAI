@@ -142,42 +142,41 @@ export function Home() {
 
     // Metrics calculation logic
     const metrics = useMemo(() => {
-        const allVehicles = Object.entries(trackerStates).map(([_, state]) => {
-            const navixyStatus = getVehicleStatus(state);
-            let uiStatus: VehicleStatus = "Stopped";
+        const counts = {
+            total: 0,
+            moving: 0,
+            stopped: 0,
+            parked: 0,
+            idle_stopped: 0,
+            idle_parked: 0,
+            offline: 0
+        };
 
-            if (navixyStatus === 'moving') {
-                uiStatus = "Running";
-            } else if (navixyStatus === 'idle-stopped' || navixyStatus === 'idle-parked') {
-                uiStatus = "Idle";
-            } else if (navixyStatus === 'offline') {
-                const lastUpdate = new Date(state.last_update).getTime();
-                const now = Date.now();
-                const hoursSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60);
+        const states = Object.values(trackerStates);
+        counts.total = states.length;
 
-                if (hoursSinceUpdate >= 24) {
-                    uiStatus = "Not Working";
-                } else {
-                    uiStatus = "Not Online";
-                }
+        states.forEach(state => {
+            const status = getVehicleStatus(state);
+            switch (status) {
+                case 'moving': counts.moving++; break;
+                case 'stopped': counts.stopped++; break;
+                case 'parked': counts.parked++; break;
+                case 'idle-stopped': counts.idle_stopped++; break;
+                case 'idle-parked': counts.idle_parked++; break;
+                case 'offline': counts.offline++; break;
             }
-            return { status: uiStatus };
         });
 
-        const total = allVehicles.length;
-        const moving = allVehicles.filter(v => v.status === 'Running').length;
-        const idle = allVehicles.filter(v => v.status === 'Idle').length;
-        const stopped = allVehicles.filter(v => v.status === 'Stopped').length;
-        const offline = allVehicles.filter(v => v.status === 'Not Working').length;
-        const not_online = allVehicles.filter(v => v.status === 'Not Online').length;
-
-        return { total, moving, idle, stopped, offline, not_online };
-    }, [trackerStates]);
+        return { 
+            ...counts, 
+            movingPct: fleetAnalysis?.movingPct || 0 
+        };
+    }, [trackerStates, fleetAnalysis]);
 
     // Render Fleet Pulse View
     if (location.pathname === '/fleet-pulse') {
         return (
-            <div className="flex flex-1 flex-col overflow-hidden h-full">
+            <div className="flex flex-1 flex-col overflow-hidden">
                 {/* Fleet Pulse Header */}
                 <header
                     className="sticky top-0 z-30 px-6 py-4 theme-transition bg-surface-main flex items-center justify-between"
@@ -251,7 +250,7 @@ export function Home() {
     }
 
     return (
-        <div className="flex flex-1 flex-col overflow-hidden h-full">
+        <div className="flex flex-1 flex-col overflow-hidden">
             {/* Run Time Status - Moved to TopNav */}
             {/* Metrics - Dashboard specific */}
             <StatusPanel metrics={metrics} />

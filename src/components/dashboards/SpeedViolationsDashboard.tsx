@@ -175,8 +175,8 @@ export const SpeedViolationsDashboard: React.FC<SpeedViolationsDashboardProps> =
                             <YAxis stroke="hsl(var(--muted-foreground))" style={{ fontSize: '12px' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
-                            <Bar dataKey="major" stackId="a" fill="#F97316" name="Major" radius={[0, 0, 0, 0]} />
-                            <Bar dataKey="severe" stackId="a" fill="#DC2626" name="Severe" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="major" stackId="a" fill="#F97316" name="Major" radius={[0, 0, 0, 0]} barSize={dateFilter === '1 day' ? 40 : undefined} />
+                            <Bar dataKey="severe" stackId="a" fill="#DC2626" name="Severe" radius={[4, 4, 0, 0]} barSize={dateFilter === '1 day' ? 40 : undefined} />
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (

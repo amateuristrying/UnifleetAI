@@ -131,7 +131,7 @@ export default function LiveOps() {
     }
 
     return (
-        <div className={cn("flex flex-col h-full bg-background transition-all duration-500", !showSidebar && "p-4")}>
+        <div className={cn("flex flex-col flex-1 min-h-0 bg-background transition-all duration-500", !showSidebar && "p-4")}>
             {/* Premium Header */}
             {!isLocked && (
                 <div className="px-8 py-6 border-b border-border flex items-center justify-between bg-white/50 backdrop-blur-xl sticky top-0 z-20">

@@ -10,7 +10,7 @@ import { MovementIdlingDashboard } from "@/components/dashboards/MovementIdlingD
 import { FuelExpenseDashboard } from "@/components/dashboards/FuelExpenseDashboard";
 import { NightDriversDashboard } from "@/components/dashboards/NightDriversDashboard";
 import { SpeedViolationsDashboard } from "@/components/dashboards/SpeedViolationsDashboard";
-import { GeofenceDashboard } from "@/components/dashboards/GeofenceDashboard";
+
 
 import { useOps } from "@/context/OpsContext";
 import { useTheme } from "@/context/ThemeProvider";
@@ -32,7 +32,6 @@ const SECTION_TITLES = [
     "Fuel Expense",
     "Night Drivers",
     "Speed Violations",
-    "Geofence Status",
 ];
 
 export function Dashboard() {
@@ -48,7 +47,7 @@ export function Dashboard() {
     // Track which dashboard sections are still loading
     const [sectionsLoading, setSectionsLoading] = useState<Set<string>>(new Set([
         'summary', 'dailyAssets', 'movementIdling', 'fuelExpense',
-        'nightDrivers', 'speedViolations', 'geofence',
+        'nightDrivers', 'speedViolations',
     ]));
     const allSettled = sectionsLoading.size === 0;
     const canDownload = allSettled && !isDownloading;
@@ -71,7 +70,7 @@ export function Dashboard() {
     const onFuelLoading = useCallback(makeSectionLoadingCb('fuelExpense'), [makeSectionLoadingCb]);
     const onNightLoading = useCallback(makeSectionLoadingCb('nightDrivers'), [makeSectionLoadingCb]);
     const onSpeedLoading = useCallback(makeSectionLoadingCb('speedViolations'), [makeSectionLoadingCb]);
-    const onGeofenceLoading = useCallback(makeSectionLoadingCb('geofence'), [makeSectionLoadingCb]);
+
 
     const [summaryFilter, setSummaryFilter] = useState<TF>("30 days");
     const [nightFilter, setNightFilter] = useState<TF>("30 days");
@@ -179,7 +178,6 @@ export function Dashboard() {
                 ["Fuel Expense", "Motion vs. idle fuel spend over time; totals highlight cost drivers."],
                 ["Night Drivers", "Vehicles with night driving hours and daily totals (after hours activity)."],
                 ["Speed Violations", "Counts and ranking of speeding events by vehicle/day (risk focus)."],
-                ["Geofence", "Entries/exits and dwell insights for zones (route & site compliance)."],
             ];
 
             // ── Pre-calculate height ──
@@ -526,9 +524,7 @@ export function Dashboard() {
                         />
                     </section>
 
-                    <section className="pdf-section">
-                        <GeofenceDashboard onLoadingChange={onGeofenceLoading} />
-                    </section>
+
                 </div>
             </main>
         </div>

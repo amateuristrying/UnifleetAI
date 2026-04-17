@@ -7,8 +7,9 @@ import { supabase } from '@/lib/supabase';
 import {
     Route, MapPin, ArrowRight, Clock, Ruler,
     TrendingUp, X, BarChart3, Target, Layers,
-    Search, Globe, Eye, EyeOff, Pencil, Save, RotateCcw
+    Search, Globe, Eye, EyeOff, Pencil, Save, RotateCcw, Lock
 } from 'lucide-react';
+import { useTheme } from '@/context/ThemeProvider';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -95,6 +96,11 @@ export default function RouteManager() {
     const [showAllEdges, setShowAllEdges] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [editPath, setEditPath] = useState('');
+    const [mapLoadedId, setMapLoadedId] = useState(0);
+    const [activeOps, setActiveOps] = useState<'tz' | 'zm'>('tz');
+
+    const { resolved } = useTheme();
+    const mapStyle = resolved === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11';
 
     // ─── Fetch Network & Routes ──────────────────────────────────
     const fetchData = useCallback(async () => {
@@ -154,14 +160,25 @@ export default function RouteManager() {
     }, []);
 
     // ─── Map Initialization ──────────────────────────────────────
+    const currentStyleRef = useRef<string | null>(null);
+
     useEffect(() => {
         if (!mapContainer.current || !MAPBOX_TOKEN || edges.length === 0) return;
-        if (mapRef.current) return;
+
+        // Skip recreate if identical style mapping already actively deployed
+        if (mapRef.current && currentStyleRef.current === mapStyle) return;
+
+        if (mapRef.current) {
+            mapRef.current.remove();
+            mapRef.current = null;
+        }
+
+        currentStyleRef.current = mapStyle;
 
         mapboxgl.accessToken = MAPBOX_TOKEN;
         const map = new mapboxgl.Map({
             container: mapContainer.current,
-            style: 'mapbox://styles/mapbox/streets-v12',
+            style: mapStyle,
             center: [32.0, -8.0],
             zoom: 4.2,
             pitch: 20,
@@ -172,13 +189,17 @@ export default function RouteManager() {
 
         map.on('load', () => {
             renderNetwork(map);
+            setMapLoadedId(prev => prev + 1);
         });
 
         return () => {
-            map.remove();
-            mapRef.current = null;
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+                currentStyleRef.current = null;
+            }
         };
-    }, [edges]);
+    }, [edges, mapStyle]);
 
     // Resize map when switching back to map view
     useEffect(() => {
@@ -538,7 +559,7 @@ export default function RouteManager() {
             map.setPaintProperty('network-line', 'line-opacity', 0.85);
             map.setPaintProperty('network-glow', 'line-opacity', 0.1);
         }
-    }, [selectedRoute, selectedEdges, showAllEdges]);
+    }, [selectedRoute, selectedEdges, showAllEdges, mapLoadedId]);
 
     // ─── Filter Routes ───────────────────────────────────────────
     const filteredRoutes = routes.filter(r => {
@@ -570,63 +591,83 @@ export default function RouteManager() {
     // ─── Render ──────────────────────────────────────────────────
     return (
         <div className="relative">
-            {/* Header Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
-                {[
-                    { label: 'SAP Routes', value: stats.totalRoutes, icon: Route, color: 'text-blue-500' },
-                    { label: 'Highway Segments', value: stats.totalEdges, icon: Layers, color: 'text-emerald-500' },
-                    { label: 'Cities', value: stats.totalCities, icon: MapPin, color: 'text-violet-400' },
-                    { label: 'Network', value: `${stats.networkKm} km`, icon: Ruler, color: 'text-cyan-400' },
-                    { label: 'Long Haul', value: stats.longHaul, icon: Globe, color: 'text-blue-400' },
-                    { label: 'Regional', value: stats.regional, icon: Layers, color: 'text-violet-400' },
-                    { label: 'Busiest Segment', value: stats.busiestEdge ? `${stats.busiestEdge.from_node}↔${stats.busiestEdge.to_node}` : '–', icon: Target, color: 'text-red-400' },
-                ].map(s => (
-                    <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-3 shadow-sm">
-                        <div className="flex items-center gap-2">
-                            <s.icon size={14} className={s.color} />
-                            <span className="text-xs text-gray-500 font-medium">{s.label}</span>
+            {/* Header Stats Floating Text */}
+            <div
+                className="mb-4 relative z-40"
+                style={{ transform: `translate(11px, -1px)` }}
+            >
+                <div className="flex flex-wrap lg:grid lg:grid-cols-7 gap-4">
+                    {[
+                        { label: 'SAP Routes', value: stats.totalRoutes, icon: Route, color: 'text-blue-500' },
+                        { label: 'Highway Segments', value: stats.totalEdges, icon: Layers, color: 'text-emerald-500' },
+                        { label: 'Cities', value: stats.totalCities, icon: MapPin, color: 'text-violet-400' },
+                        { label: 'Network', value: `${stats.networkKm} km`, icon: Ruler, color: 'text-cyan-400' },
+                        { label: 'Long Haul', value: stats.longHaul, icon: Globe, color: 'text-blue-400' },
+                        { label: 'Regional', value: stats.regional, icon: Layers, color: 'text-violet-400' },
+                        { label: 'Busiest Segment', value: stats.busiestEdge ? `${stats.busiestEdge.from_node}↔${stats.busiestEdge.to_node}` : '–', icon: Target, color: 'text-red-400' },
+                    ].map(s => (
+                        <div key={s.label} className="py-2">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <s.icon size={14} className={s.color} />
+                                <span className="text-[11px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-wider">{s.label}</span>
+                            </div>
+                            <div className="text-xl font-black text-gray-900 dark:text-slate-100 truncate">{s.value}</div>
                         </div>
-                        <div className="text-base font-bold text-gray-900 mt-1 truncate">{s.value}</div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
 
             {/* Search & Filters */}
             <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <div className="relative flex-1 max-w-md">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
                     <input
                         type="text"
                         placeholder="Search routes, SAP codes, cities..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-gray-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     />
                 </div>
-                <div className="flex bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                <div className="flex bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm transition-colors">
                     {['all', 'long_haul', 'regional', 'local', 'multi_leg'].map(type => (
                         <button
                             key={type}
                             onClick={() => setFilterType(type)}
-                            className={`px-3 py-2 text-xs font-medium transition-colors ${filterType === type ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'
+                            className={`px-3 py-2 text-xs font-medium transition-colors border-r last:border-r-0 border-gray-200 dark:border-slate-800 ${filterType === type ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800'
                                 }`}
                         >
                             {type === 'all' ? 'All' : CORRIDOR_LABELS[type]}
                         </button>
                     ))}
                 </div>
-                <div className="flex bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                <div className="flex bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm transition-colors">
                     <button
                         onClick={() => setViewMode('map')}
-                        className={`px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'map' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`px-3 py-2 text-xs font-medium transition-colors border-r border-gray-200 dark:border-slate-800 ${viewMode === 'map' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
                     >
                         Map
                     </button>
                     <button
                         onClick={() => setViewMode('table')}
-                        className={`px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+                        className={`px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'table' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
                     >
                         Table
+                    </button>
+                </div>
+                <div className="flex bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm transition-colors ml-auto">
+                    <button
+                        onClick={() => setActiveOps('tz')}
+                        className={`px-3 py-2 text-xs font-medium transition-colors border-r border-gray-200 dark:border-slate-800 ${activeOps === 'tz' ? 'bg-blue-600 text-white dark:bg-blue-600' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
+                    >
+                        TZ Ops
+                    </button>
+                    <button
+                        disabled
+                        className="flex items-center gap-1 px-3 py-2 text-xs font-medium bg-gray-50 dark:bg-slate-800/80 text-gray-400 dark:text-slate-500 cursor-not-allowed opacity-80"
+                    >
+                        <Lock size={12} />
+                        ZM Ops
                     </button>
                 </div>
             </div>
@@ -636,11 +677,11 @@ export default function RouteManager() {
                 <div className="flex-1 min-w-0">
                     {/* Map View — always mounted, toggled via CSS to prevent destroy/recreate */}
                     <div
-                        className="relative rounded-xl overflow-hidden border border-gray-200 shadow-sm"
+                        className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm transition-colors"
                         style={{ height: 600, display: viewMode === 'map' ? 'block' : 'none' }}
                     >
                         {loading ? (
-                            <div className="h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                            <div className="h-full flex items-center justify-center bg-gray-100 dark:bg-slate-900 text-gray-500 dark:text-slate-400">
                                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mr-3" />
                                 Loading Highway Network...
                             </div>
@@ -649,8 +690,8 @@ export default function RouteManager() {
                         )}
 
                         {/* Legend */}
-                        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 border border-gray-200 shadow-lg">
-                            <div className="text-xs font-semibold text-gray-700 mb-2">Traffic Density</div>
+                        <div className="absolute bottom-4 left-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-lg p-3 border border-gray-200 dark:border-slate-800 shadow-lg transition-colors">
+                            <div className="text-xs font-semibold text-gray-700 dark:text-slate-300 mb-2">Traffic Density</div>
                             {[
                                 { count: 20, label: 'Major Artery (20+ routes)' },
                                 { count: 10, label: 'Busy (10-19 routes)' },
@@ -667,23 +708,23 @@ export default function RouteManager() {
                                             height: '3px',
                                         }}
                                     />
-                                    <span className="text-xs text-gray-600">{item.label}</span>
+                                    <span className="text-xs text-gray-600 dark:text-slate-400">{item.label}</span>
                                 </div>
                             ))}
-                            <div className="border-t border-gray-200 mt-2 pt-2">
+                            <div className="border-t border-gray-200 dark:border-slate-800 mt-2 pt-2">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <div className="w-3 h-3 rounded-full bg-blue-600 border-2 border-white shadow" />
-                                    <span className="text-xs text-gray-600">⬥ Hub / Interchange</span>
+                                    <div className="w-3 h-3 rounded-full bg-blue-600 border-2 border-white dark:border-slate-900 shadow" />
+                                    <span className="text-xs text-gray-600 dark:text-slate-400">⬥ Hub / Interchange</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-gray-500 border border-white" />
-                                    <span className="text-xs text-gray-600">City / Stop</span>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-gray-500 border border-white dark:border-slate-900" />
+                                    <span className="text-xs text-gray-600 dark:text-slate-400">City / Stop</span>
                                 </div>
                             </div>
                             {selectedRoute && (
-                                <div className="border-t border-gray-200 mt-2 pt-2 flex items-center gap-2">
+                                <div className="border-t border-gray-200 dark:border-slate-800 mt-2 pt-2 flex items-center gap-2">
                                     <div className="w-4 h-[3px] rounded-full bg-cyan-500" />
-                                    <span className="text-xs text-cyan-700 font-medium">Selected Route</span>
+                                    <span className="text-xs text-cyan-700 dark:text-cyan-400 font-medium">Selected Route</span>
                                 </div>
                             )}
                         </div>
@@ -693,7 +734,7 @@ export default function RouteManager() {
                             <div className="absolute top-4 left-4">
                                 <button
                                     onClick={() => setShowAllEdges(p => !p)}
-                                    className="flex items-center gap-2 px-3 py-2 bg-white/95 backdrop-blur-sm text-gray-700 text-xs font-medium rounded-lg border border-gray-200 shadow-lg hover:bg-gray-50 transition-colors"
+                                    className="flex items-center gap-2 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm text-gray-700 dark:text-slate-300 text-xs font-medium rounded-lg border border-gray-200 dark:border-slate-800 shadow-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                                 >
                                     {showAllEdges ? <Eye size={14} /> : <EyeOff size={14} />}
                                     {showAllEdges ? 'Isolate route' : 'Show full network'}
@@ -704,35 +745,35 @@ export default function RouteManager() {
 
                     {/* Table View */}
                     {viewMode === 'table' && (
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" style={{ maxHeight: 600, overflowY: 'auto' }}>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors" style={{ maxHeight: 600, overflowY: 'auto' }}>
                             <table className="w-full text-sm">
-                                <thead className="bg-gray-50 sticky top-0">
+                                <thead className="bg-gray-50 dark:bg-slate-800/50 sticky top-0">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">SAP Code</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Route</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Type</th>
-                                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Distance</th>
-                                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Est. Time</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-slate-400">SAP Code</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-slate-400">Route</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-slate-400">Type</th>
+                                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-slate-400">Distance</th>
+                                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-slate-400">Est. Time</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100">
+                                <tbody className="divide-y divide-gray-100 dark:divide-slate-800/50">
                                     {filteredRoutes.map(route => (
                                         <tr
                                             key={route.id}
                                             onClick={() => handleSelectRoute(route)}
-                                            className={`cursor-pointer transition-colors ${selectedRoute?.id === route.id ? 'bg-blue-50' : 'hover:bg-gray-50'
+                                            className={`cursor-pointer transition-colors ${selectedRoute?.id === route.id ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800/50'
                                                 }`}
                                         >
-                                            <td className="px-4 py-3 font-mono text-xs text-gray-600">{route.sap_code}</td>
+                                            <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-slate-400">{route.sap_code}</td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="font-medium text-gray-900">{route.point_a}</span>
-                                                    <ArrowRight size={12} className="text-gray-400" />
-                                                    <span className="font-medium text-gray-900">{route.point_b}</span>
+                                                    <span className="font-medium text-gray-900 dark:text-slate-200">{route.point_a}</span>
+                                                    <ArrowRight size={12} className="text-gray-400 dark:text-slate-500" />
+                                                    <span className="font-medium text-gray-900 dark:text-slate-200">{route.point_b}</span>
                                                     {route.point_c && (
                                                         <>
-                                                            <ArrowRight size={12} className="text-gray-400" />
-                                                            <span className="font-medium text-amber-600">{route.point_c}</span>
+                                                            <ArrowRight size={12} className="text-gray-400 dark:text-slate-500" />
+                                                            <span className="font-medium text-amber-600 dark:text-amber-500">{route.point_c}</span>
                                                         </>
                                                     )}
                                                 </div>
@@ -743,10 +784,10 @@ export default function RouteManager() {
                                                     {CORRIDOR_LABELS[route.corridor_type]}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right text-gray-700 font-medium">
+                                            <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-300 font-medium">
                                                 {route.estimated_distance_km ? `${route.estimated_distance_km.toLocaleString()} km` : '–'}
                                             </td>
-                                            <td className="px-4 py-3 text-right text-gray-500">
+                                            <td className="px-4 py-3 text-right text-gray-500 dark:text-slate-400">
                                                 {route.estimated_duration_hrs ? `${route.estimated_duration_hrs}h` : '–'}
                                             </td>
                                         </tr>
@@ -759,7 +800,7 @@ export default function RouteManager() {
 
                 {/* Detail Panel */}
                 {selectedRoute && (
-                    <div className="w-96 flex-shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" style={{ maxHeight: 600, overflowY: 'auto' }}>
+                    <div className="w-96 flex-shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col transition-colors" style={{ maxHeight: 600, overflowY: 'auto' }}>
                         <div className="px-5 py-4 bg-gradient-to-br from-blue-600 to-blue-700 text-white relative">
                             <button
                                 onClick={() => { setSelectedRoute(null); setSelectedEdges([]); }}
@@ -782,19 +823,19 @@ export default function RouteManager() {
                         </div>
 
                         {/* Route info grid */}
-                        <div className="grid grid-cols-2 gap-px bg-gray-100 border-b border-gray-200">
+                        <div className="grid grid-cols-2 gap-px bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-800">
                             {[
                                 { label: 'Distance', value: selectedRoute.estimated_distance_km ? `${selectedRoute.estimated_distance_km.toLocaleString()} km` : '–', icon: Ruler },
                                 { label: 'Est. Duration', value: selectedRoute.estimated_duration_hrs ? `${selectedRoute.estimated_duration_hrs}h` : '–', icon: Clock },
                                 { label: 'Highway Segments', value: selectedEdges.length || '–', icon: Layers },
                                 { label: 'Corridor Type', value: CORRIDOR_LABELS[selectedRoute.corridor_type], icon: Target },
                             ].map(item => (
-                                <div key={item.label} className="bg-white px-4 py-3">
-                                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                <div key={item.label} className="bg-white dark:bg-slate-900 px-4 py-3">
+                                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
                                         <item.icon size={12} />
                                         {item.label}
                                     </div>
-                                    <div className="text-sm font-bold text-gray-900 mt-0.5">{item.value}</div>
+                                    <div className="text-sm font-bold text-gray-900 dark:text-slate-100 mt-0.5">{item.value}</div>
                                 </div>
                             ))}
                         </div>
@@ -802,13 +843,13 @@ export default function RouteManager() {
                         {/* Highway segments breakdown */}
                         <div className="p-4">
                             <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                                <h4 className="text-sm font-semibold text-gray-800 dark:text-slate-100 flex items-center gap-2">
                                     <BarChart3 size={14} className="text-cyan-500" />
                                     Highway Path
                                 </h4>
                                 <button
                                     onClick={() => setEditMode(!editMode)}
-                                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editMode ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
+                                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${editMode ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800'
                                         }`}
                                 >
                                     <Pencil size={12} />
@@ -818,16 +859,16 @@ export default function RouteManager() {
 
                             {/* Edit Mode */}
                             {editMode && (
-                                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <label className="text-xs font-medium text-blue-800 block mb-1">City Path (separate with →)</label>
+                                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                    <label className="text-xs font-medium text-blue-800 dark:text-blue-300 block mb-1">City Path (separate with →)</label>
                                     <textarea
                                         value={editPath}
                                         onChange={e => setEditPath(e.target.value)}
                                         rows={3}
-                                        className="w-full text-xs p-2 border border-blue-300 rounded bg-white font-mono focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                                        className="w-full text-xs p-2 border border-blue-300 dark:border-blue-700 rounded bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
                                         placeholder="Dar Es Salaam → Morogoro → Iringa → Mbeya"
                                     />
-                                    <p className="text-xs text-blue-600 mt-1">Edit the city sequence, then re-run the build script to update edges.</p>
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Edit the city sequence, then re-run the build script to update edges.</p>
                                     <div className="flex gap-2 mt-2">
                                         <button
                                             onClick={() => {
@@ -852,7 +893,7 @@ export default function RouteManager() {
                                                     setEditPath(cities.join(' → '));
                                                 }
                                             }}
-                                            className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded hover:bg-gray-300 transition-colors"
+                                            className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 text-xs font-medium rounded hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"
                                         >
                                             <RotateCcw size={12} />
                                             Reset
@@ -867,15 +908,15 @@ export default function RouteManager() {
                                         const from = edge.direction === 'reverse' ? edge.to_node : edge.from_node;
                                         const to = edge.direction === 'reverse' ? edge.from_node : edge.to_node;
                                         return (
-                                            <div key={edge.edge_id} className="flex items-center gap-2 py-2 px-3 bg-gray-50 rounded-lg">
-                                                <div className="w-5 h-5 rounded-full bg-cyan-100 text-cyan-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                                            <div key={edge.edge_id} className="flex items-center gap-2 py-2 px-3 bg-gray-50 dark:bg-slate-800/50 rounded-lg">
+                                                <div className="w-5 h-5 rounded-full bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 text-xs font-bold flex items-center justify-center flex-shrink-0">
                                                     {i + 1}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-gray-800 truncate">
+                                                    <div className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">
                                                         {from} → {to}
                                                     </div>
-                                                    <div className="text-xs text-gray-500">
+                                                    <div className="text-xs text-gray-500 dark:text-slate-400">
                                                         {edge.distance_km ? `${edge.distance_km} km` : ''}
                                                     </div>
                                                 </div>
@@ -884,10 +925,10 @@ export default function RouteManager() {
                                     })}
 
                                     {/* Total distance */}
-                                    <div className="mt-3 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+                                    <div className="mt-3 p-3 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg">
                                         <div className="flex justify-between items-center">
-                                            <span className="text-xs font-medium text-cyan-700">Total Highway Distance</span>
-                                            <span className="text-sm font-bold text-cyan-800">
+                                            <span className="text-xs font-medium text-cyan-700 dark:text-cyan-400">Total Highway Distance</span>
+                                            <span className="text-sm font-bold text-cyan-800 dark:text-cyan-300">
                                                 {selectedEdges.reduce((s, e) => s + (e.distance_km || 0), 0).toLocaleString()} km
                                             </span>
                                         </div>
@@ -895,8 +936,8 @@ export default function RouteManager() {
                                 </div>
                             ) : (
                                 <div className="text-center py-6">
-                                    <TrendingUp size={24} className="text-gray-300 mx-auto mb-2" />
-                                    <p className="text-xs text-gray-400">No highway segments mapped yet.</p>
+                                    <TrendingUp size={24} className="text-gray-300 dark:text-slate-600 mx-auto mb-2" />
+                                    <p className="text-xs text-gray-400 dark:text-slate-500">No highway segments mapped yet.</p>
                                 </div>
                             )}
                         </div>

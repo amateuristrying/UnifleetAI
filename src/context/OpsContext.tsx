@@ -11,7 +11,7 @@ export interface OpsContextType {
 const OpsContext = createContext<OpsContextType | undefined>(undefined);
 
 export function OpsProvider({ children }: { children: ReactNode }) {
-    const [ops, setOps] = useState<OpsKey>('zambia'); // Default to Zambia
+    const [ops, setOps] = useState<OpsKey>('tanzania'); // Default to Tanzania
     return <OpsContext.Provider value={{ ops, setOps }}>{children}</OpsContext.Provider>;
 }
 

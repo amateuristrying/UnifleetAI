@@ -112,7 +112,7 @@ export default function LiveFleet() {
     }
 
     return (
-        <div className={cn("flex flex-col h-full transition-all duration-500", !showSidebar && "p-0 sm:p-4")}>
+        <div className={cn("flex flex-col flex-1 min-h-0 transition-all duration-500", !showSidebar && "p-0 sm:p-4")}>
             <div className="flex-1 flex flex-col min-h-0 m-0 sm:m-4 lg:m-6 sm:rounded-[40px] bg-surface-card shadow-xl border-x-0 sm:border border-border/50 overflow-y-auto sm:overflow-hidden">
                 {/* Premium Header - Nested in surface box for better containment */}
                 {!isLocked && (

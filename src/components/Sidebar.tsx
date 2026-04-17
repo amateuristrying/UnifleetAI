@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
-import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, Activity, LineChart, Gauge, Clock } from "lucide-react";
+import { Menu, Home as HomeIcon, ShieldCheck, LocateFixed, Activity, LineChart, Gauge, Clock, AlertCircle } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { MarqueeText } from "./ui/MarqueeText";
 
-export function Sidebar() {
+export function Sidebar({ isLocked = false }: { isLocked?: boolean }) {
     const location = useLocation();
     const navigate = useNavigate();
     const [isExpanded, setIsExpanded] = useState(false);
+    const [lockMessage, setLockMessage] = useState<{ text: string, x: number, y: number } | null>(null);
     const sidebarRef = useRef<HTMLElement>(null);
 
     const toggleSidebar = () => setIsExpanded(!isExpanded);
@@ -28,10 +29,26 @@ export function Sidebar() {
     }, [isExpanded]);
 
     // Format handleNavigation helper
-    const handleNavigation = (path: string) => {
+    const handleNavigation = (path: string, label: string, e: React.MouseEvent) => {
+        if (isLocked) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setLockMessage({
+                text: `User must log in first to see ${label}`,
+                x: rect.right + 10,
+                y: rect.top + rect.height / 2
+            });
+            return;
+        }
         navigate(path);
         if (isExpanded) setIsExpanded(false);
     };
+
+    useEffect(() => {
+        if (lockMessage) {
+            const timer = setTimeout(() => setLockMessage(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [lockMessage]);
 
     // Helper to check if a path is active
     const isActive = (path: string) => {
@@ -45,11 +62,23 @@ export function Sidebar() {
         <aside
             ref={sidebarRef}
             className={cn(
-                "flex flex-col bg-surface-card ml-3 my-3 rounded-[35px] shadow-md z-50 transition-all duration-300 ease-in-out overflow-hidden border border-border",
+                "flex flex-col bg-surface-card ml-3 my-3 rounded-[35px] shadow-md z-50 transition-all duration-300 ease-in-out overflow-hidden border border-border relative",
                 isExpanded ? "w-[240px] items-start px-4" : "w-[60px] items-center px-2"
             )}
             style={{ height: "calc(100vh - 24px)" }}
         >
+            {/* Lock Message Popup */}
+            {lockMessage && (
+                <div 
+                    className="fixed z-[100] bg-surface-card border border-border shadow-xl rounded-xl px-4 py-2 text-xs font-semibold animate-in fade-in zoom-in slide-in-from-left-2 duration-300 flex items-center gap-2"
+                    style={{ left: lockMessage.x, top: lockMessage.y, transform: 'translateY(-50%)' }}
+                >
+                    <AlertCircle className="h-3.5 w-3.5 text-blue-500" />
+                    <span>{lockMessage.text}</span>
+                    <div className="absolute left-[-5px] top-1/2 -translate-y-1/2 w-2 h-2 bg-surface-card border-l border-b border-border rotate-45" />
+                </div>
+            )}
+
             {/* Hamburger / Menu Toggle */}
             <div className={cn("pt-6 pb-4 w-full flex", isExpanded ? "justify-start" : "justify-center")}>
                 <Button
@@ -69,7 +98,8 @@ export function Sidebar() {
                     label="Runtime Status"
                     isExpanded={isExpanded}
                     isActive={isActive('/')}
-                    onClick={() => handleNavigation('/')}
+                    onClick={(e) => handleNavigation('/', 'Runtime Status', e)}
+                    isLocked={isLocked}
                 />
 
                 <SidebarItem
@@ -77,7 +107,8 @@ export function Sidebar() {
                     label="Live Geofences"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-geofences')}
-                    onClick={() => handleNavigation('/live-geofences')}
+                    onClick={(e) => handleNavigation('/live-geofences', 'Live Geofences', e)}
+                    isLocked={isLocked}
                 />
 
                 <SidebarItem
@@ -85,7 +116,8 @@ export function Sidebar() {
                     label="Live Violations"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-speed')}
-                    onClick={() => handleNavigation('/live-speed')}
+                    onClick={(e) => handleNavigation('/live-speed', 'Live Violations', e)}
+                    isLocked={isLocked}
                 />
 
                 <SidebarItem
@@ -93,7 +125,8 @@ export function Sidebar() {
                     label="Live Fleet"
                     isExpanded={isExpanded}
                     isActive={isActive('/live-fleet')}
-                    onClick={() => handleNavigation('/live-fleet')}
+                    onClick={(e) => handleNavigation('/live-fleet', 'Live Fleet', e)}
+                    isLocked={isLocked}
                 />
 
                 <SidebarItem
@@ -101,7 +134,8 @@ export function Sidebar() {
                     label="Analytics"
                     isExpanded={isExpanded}
                     isActive={isActive('/analytics')}
-                    onClick={() => handleNavigation('/analytics')}
+                    onClick={(e) => handleNavigation('/analytics', 'Analytics', e)}
+                    isLocked={isLocked}
                 />
 
                 <SidebarItem
@@ -109,7 +143,8 @@ export function Sidebar() {
                     label="Turnaround time"
                     isExpanded={isExpanded}
                     isActive={isActive('/turnaround-time')}
-                    onClick={() => handleNavigation('/turnaround-time')}
+                    onClick={(e) => handleNavigation('/turnaround-time', 'Turnaround time', e)}
+                    isLocked={isLocked}
                 />
 
                 <SidebarItem
@@ -117,7 +152,8 @@ export function Sidebar() {
                     label="Fleet Pulse"
                     isExpanded={isExpanded}
                     isActive={isActive('/fleet-pulse')}
-                    onClick={() => handleNavigation('/fleet-pulse')}
+                    onClick={(e) => handleNavigation('/fleet-pulse', 'Fleet Pulse', e)}
+                    isLocked={isLocked}
                 />
 
             </nav>
@@ -131,11 +167,12 @@ interface SidebarItemProps {
     label: string;
     isExpanded: boolean;
     isActive?: boolean;
-    onClick: () => void;
+    onClick: (e: React.MouseEvent) => void;
     marquee?: boolean;
+    isLocked?: boolean;
 }
 
-function SidebarItem({ icon, label, isExpanded, isActive, onClick, marquee }: SidebarItemProps) {
+function SidebarItem({ icon, label, isExpanded, isActive, onClick, marquee, isLocked }: SidebarItemProps) {
     return (
         <Button
             variant="ghost"
@@ -145,7 +182,8 @@ function SidebarItem({ icon, label, isExpanded, isActive, onClick, marquee }: Si
                 isExpanded ? "w-full justify-start px-3 text-left" : "w-11 justify-center px-0",
                 isActive
                     ? "bg-primary/10 text-primary hover:bg-primary/15 font-medium"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                isLocked && "cursor-default"
             )}
         >
             <div className={cn("flex items-center justify-center transition-colors", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")}>
@@ -173,3 +211,4 @@ function SidebarItem({ icon, label, isExpanded, isActive, onClick, marquee }: Si
         </Button>
     );
 }
+

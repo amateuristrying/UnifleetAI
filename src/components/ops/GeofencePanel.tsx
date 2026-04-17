@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
     MapPin, Plus, Trash2, Clock, ArrowLeft,
     Anchor, Files, Warehouse, Truck, Target,
-    Hexagon, Circle, Share2,
+    Hexagon, Circle, Share2, Search,
 } from 'lucide-react';
 import type { Geofence, CreateZonePayload, GeofenceCategory } from '@/types/geofence';
 
@@ -61,6 +61,9 @@ export default function GeofencePanel({
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
     const [view, setView] = useState<PanelView>('list');
+    
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
 
     // Sync external view mode
     useEffect(() => {
@@ -95,6 +98,11 @@ export default function GeofencePanel({
             updateView('detail');
         }
     }, [selectedZoneId, view]); // Added view to dependency array
+
+    useEffect(() => {
+        setSearchQuery('');
+        setIsSearching(false);
+    }, [view, selectedZoneId]);
 
     const handleZoneClick = (zoneId: number) => {
         onSelectZone(zoneId);
@@ -153,34 +161,58 @@ export default function GeofencePanel({
 
     // Sort zones by vehicle count descending
     const sortedZones = [...zones].sort((a, b) => (b.vehicleCount || 0) - (a.vehicleCount || 0));
+    const filteredZones = sortedZones.filter(z => z.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
     // LIST VIEW
     if (view === 'list') {
         return (
             <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-[30px] border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-                    <div>
-                        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Geofence Zones</h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{zones.length} zones configured</p>
+                <div className="p-4 border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Geofence Zones</h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{zones.length} zones configured</p>
+                        </div>
+                        <button 
+                            onClick={() => setIsSearching(!isSearching)}
+                            className="p-2 border border-gray-200 dark:border-slate-700 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
+                        >
+                            <Search size={16} />
+                        </button>
                     </div>
+                    {isSearching && (
+                        <input
+                            type="text"
+                            placeholder="Search geofences..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            autoFocus
+                            className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-slate-200"
+                        />
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {sortedZones.length === 0 ? (
+                    {filteredZones.length === 0 ? (
                         <div className="text-center py-12">
                             <MapPin className="mx-auto text-slate-300 mb-3" size={32} />
-                            <p className="text-sm font-medium text-slate-500">No geofence zones</p>
-                            <p className="text-xs text-slate-400 mt-1">Create your first zone to start monitoring</p>
-                            <p className="text-xs text-slate-400 mt-1">Create your first zone to start monitoring</p>
-                            <button
-                                onClick={() => updateView('create')}
-                                className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
-                            >
-                                <Plus size={12} className="inline mr-1" /> Create Zone
-                            </button>
+                            <p className="text-sm font-medium text-slate-500">No matching geofences</p>
+                            {searchQuery ? (
+                                <p className="text-xs text-slate-400 mt-1">Try a different search term</p>
+                            ) : (
+                                <>
+                                    <p className="text-xs text-slate-400 mt-1">Create your first zone to start monitoring</p>
+                                    <button
+                                        onClick={() => updateView('create')}
+                                        className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
+                                    >
+                                        <Plus size={12} className="inline mr-1" /> Create Zone
+                                    </button>
+                                </>
+                            )}
                         </div>
                     ) : (
-                        sortedZones.map(zone => (
+                        filteredZones.map(zone => (
                             <div
                                 key={zone.id}
                                 onClick={() => handleZoneClick(zone.id)}
@@ -407,10 +439,33 @@ export default function GeofencePanel({
                     </div>
 
                     {selectedZone.vehicleIds.length > 0 && (
-                        <div>
-                            <h3 className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">Vehicles Currently Inside</h3>
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-bold text-slate-600 dark:text-slate-400">Vehicles Currently Inside</h3>
+                                <button 
+                                    onClick={() => setIsSearching(!isSearching)}
+                                    className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                >
+                                    <Search size={14} />
+                                </button>
+                            </div>
+                            
+                            {isSearching && (
+                                <input
+                                    type="text"
+                                    placeholder="Search vehicles..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    autoFocus
+                                    className="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md focus:outline-none focus:border-blue-500 transition-all text-slate-800 dark:text-slate-200"
+                                />
+                            )}
+                            
                             <div className="space-y-1">
-                                {selectedZone.vehicleIds.map((tId: number) => {
+                                {selectedZone.vehicleIds.filter((tId: number) => {
+                                    const label = trackerLabels[tId] || `Tracker #${tId}`;
+                                    return label.toLowerCase().includes(searchQuery.toLowerCase());
+                                }).map((tId: number) => {
                                     const occupant = selectedZone.occupants?.[tId];
                                     const now = Date.now();
                                     const durationMs = occupant ? now - occupant.entryTime : 0;

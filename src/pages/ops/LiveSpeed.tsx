@@ -70,7 +70,7 @@ export default function LiveSpeed() {
 
     // 3. Detect Violations Logic
     const ongoingViolations = useRef<Record<number, { startTime: number, maxSpeed: number, count: number, sumSpeed: number }>>({});
-    const SPEED_LIMIT = 70;
+    const SPEED_LIMIT = 80;
 
     // Compute Active Violations for Display (Derived from real-time state)
     const activeViolations: SpeedViolation[] = useMemo(() => {
@@ -169,7 +169,7 @@ export default function LiveSpeed() {
 
     // Critical Count
     const criticalCount = useMemo(() => {
-        return allViolations.filter(v => v.maxSpeed >= 80).length;
+        return allViolations.filter(v => v.maxSpeed >= 90).length;
     }, [allViolations]);
 
     // Filter Logic
@@ -184,7 +184,7 @@ export default function LiveSpeed() {
         }
 
         if (showCriticalOnly) {
-            result = result.filter(v => v.maxSpeed >= 80);
+            result = result.filter(v => v.maxSpeed >= 90);
         }
 
         return result;
@@ -278,7 +278,7 @@ export default function LiveSpeed() {
                             )}>
                                 {criticalCount}
                                 <span className="text-xs font-bold text-muted-foreground ml-1.5 opacity-60 font-mono">
-                                    VEHICLES &gt; 80 KM/H
+                                    VEHICLES &gt; 90 KM/H
                                 </span>
                             </span>
                         </div>
@@ -392,7 +392,7 @@ export default function LiveSpeed() {
                             <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Recent Violations Feed</span>
                         </div>
                         <div className="text-[10px] font-mono text-muted-foreground">
-                            Updates automatically • 70 KM/H Limit
+                            Updates automatically • 80 KM/H Limit
                         </div>
                     </div>
 

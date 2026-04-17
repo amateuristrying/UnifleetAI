@@ -11,8 +11,10 @@ import {
     ArrowLeft,
     Eye,
     X,
-    Clock
+    Clock,
+    Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import type { FleetAnalysis, ZoneType, ActionItem } from '@/types/fleet-analysis';
 import type { Geofence } from '@/types/geofence';
 import { cn } from '@/lib/utils';
@@ -142,6 +144,55 @@ export default function RealtimeInsights({
         onMonitorZones?.(newIds);
     };
 
+    const handleExportCSV = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        
+        const allData: any[] = [];
+
+        zones.forEach(zone => {
+            if (!zone.vehicleIds || zone.vehicleIds.length === 0) return;
+
+            zone.vehicleIds.forEach(vId => {
+                const occ = zone.occupants[vId];
+                if (!occ) return;
+
+                const diffMs = Date.now() - occ.entryTime;
+                const hours = diffMs / (1000 * 60 * 60);
+                const days = hours / 24;
+
+                allData.push({
+                    rawDwellMs: diffMs,
+                    'geofenceName': zone.name,
+                    'vehicleNumber': trackerLabels[vId] || vId,
+                    'entryDatetime': new Date(occ.entryTime).toLocaleString(),
+                    'dwellHours': hours.toFixed(2),
+                    'dwellDays': days.toFixed(2)
+                });
+            });
+        });
+
+        if (allData.length > 0) {
+            allData.sort((a, b) => b.rawDwellMs - a.rawDwellMs);
+            
+            const finalData = allData.map(item => ({
+                'Geofence Name': item.geofenceName,
+                'Vehicle Number': item.vehicleNumber,
+                'Entry Datetime': item.entryDatetime,
+                'Dwell Hours': item.dwellHours,
+                'Dwell Days': item.dwellDays
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(finalData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Master Report");
+
+            const dateStr = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, `Live_Geofences_Master_${dateStr}.csv`);
+        } else {
+            alert('No assets currently inside any geofences to export.');
+        }
+    };
+
     if (currentView === 'summary') {
         return (
             <div className="space-y-6">
@@ -150,9 +201,18 @@ export default function RealtimeInsights({
                         onClick={() => onViewChange('geofences')}
                         className="bg-surface-card rounded-[32px] border border-primary/30 mt-3 shadow-md p-6 w-full group hover:shadow-xl transition-all duration-500 cursor-pointer overflow-hidden relative"
                     >
-                        <h3 className="text-muted-foreground text-[10px] font-black uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <MapPin size={14} className="text-primary" /> Track Geofences
-                        </h3>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-muted-foreground text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                <MapPin size={14} className="text-primary" /> Track Geofences
+                            </h3>
+                            <button
+                                onClick={handleExportCSV}
+                                className="p-1.5 hover:bg-muted/80 rounded-xl bg-muted/30 text-muted-foreground hover:text-foreground transition-all border border-border shadow-sm flex items-center justify-center"
+                                title="Download Geofences Master Report (CSV)"
+                            >
+                                <Download size={14} />
+                            </button>
+                        </div>
                         {/* ... (Geofence List items remain same) ... */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 flex-1 content-start">
                             {[...zones].sort((a, b) => b.vehicleCount - a.vehicleCount).slice(0, 12).map((zone) => (
@@ -160,7 +220,11 @@ export default function RealtimeInsights({
                                     key={zone.id}
                                     draggable="true"
                                     onDragStart={(e) => handleDragStart(e, zone.id)}
-                                    className="flex items-center justify-between p-3.5 rounded-xl bg-muted/30 border border-primary/20 hover:bg-surface-raised hover:shadow-sm transition-all cursor-grab active:cursor-grabbing"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onSelectZone?.(zone.id);
+                                    }}
+                                    className="flex items-center justify-between p-3.5 rounded-xl bg-muted/30 border border-primary/20 hover:bg-surface-raised hover:shadow-sm transition-all hover:ring-1 hover:ring-primary/50 cursor-pointer"
                                 >
                                     <div className="flex items-center gap-3 overflow-hidden">
                                         <div className="w-1.5 h-1.5 shrink-0 rounded-full border-2 border-border" style={{ backgroundColor: zone.color }}></div>

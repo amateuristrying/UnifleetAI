@@ -138,7 +138,7 @@ export function SummaryMetricsDashboard({
                     totalDrivingHours: parseFloat(m1['Total Driving Duration (hrs)']) || 0,
                     avgDrivingHoursPerTrip: parseFloat(m1['Average Driving Hours per Trip']) || 0,
                     avgDrivingHoursPerDay: parseFloat(m1['Average Driving Hours per Day']) || 0,
-                    vehiclesAbove5km: parseFloat(m1['Vehicles ≥5 km']) || 0,
+                    vehiclesAbove5km: parseFloat(m1['Vehicles ≥5 km'] ?? m1['Vehicles > 5 km']) || 0,
                     totalNightDrivingHours: parseFloat(m1['Total Night Driving Duration (hrs)']) || 0,
                 });
 

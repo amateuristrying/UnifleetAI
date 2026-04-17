@@ -6,9 +6,10 @@ interface MapAdapterProps {
     vehicles?: Vehicle[];
     selectedVehicleId?: string | null;
     onMarkerClick?: (id: string) => void;
+    autoFit?: boolean;
 }
 
-export function MapAdapter({ vehicles, selectedVehicleId, onMarkerClick }: MapAdapterProps) {
+export function MapAdapter({ vehicles, selectedVehicleId, onMarkerClick, autoFit }: MapAdapterProps) {
     // 1. Environmental Check
     const token = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -32,6 +33,7 @@ export function MapAdapter({ vehicles, selectedVehicleId, onMarkerClick }: MapAd
             vehicles={effectiveVehicles}
             selectedVehicleId={selectedVehicleId}
             onMarkerClick={onMarkerClick || (() => { })}
+            autoFit={autoFit}
         />
     );
 }

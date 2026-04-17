@@ -7,10 +7,12 @@ import { useAuth } from "@/context/AuthContext";
 export interface DashboardMetrics {
     total: number;
     moving: number;
-    idle: number;
+    idle_stopped: number;
+    idle_parked: number;
     stopped: number;
+    parked: number;
     offline: number;
-    not_online: number;
+    movingPct: number;
 }
 
 interface StatusPanelProps {
@@ -18,7 +20,7 @@ interface StatusPanelProps {
 }
 
 export function StatusPanel({ metrics }: StatusPanelProps) {
-    const m = metrics || { total: 0, moving: 0, idle: 0, stopped: 0, offline: 0, not_online: 0 };
+    const m = metrics || { total: 0, moving: 0, idle_stopped: 0, idle_parked: 0, stopped: 0, parked: 0, offline: 0, movingPct: 0 };
     const { ops, setOps } = useOps();
     const isOnline = useOnlineStatus();
     const { checkPermission } = useAuth();
@@ -51,17 +53,17 @@ export function StatusPanel({ metrics }: StatusPanelProps) {
                         )}
                     </div>
 
-                    {/* Ops Toggle Switch - Significantly Increased Size */}
+                    {/* Ops Toggle Switch */}
                     <div className={cn(
-                        "flex items-center bg-muted/60 rounded-full p-1 border border-border shadow-sm origin-right transition-opacity",
-                        "scale-110", // Scaled up
+                        "flex items-center bg-muted/60 rounded-full p-1 border border-border shadow-sm origin-right transition-all",
+                        "scale-110",
                         !isAdmin && "opacity-60 pointer-events-none grayscale"
                     )}>
                         <button
                             onClick={() => isAdmin && setOps('tanzania')}
                             disabled={!isAdmin}
                             className={cn(
-                                "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer", // Increased padding and font size
+                                "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer",
                                 !isAdmin && "cursor-not-allowed",
                                 ops === 'tanzania'
                                     ? "bg-blue-500 text-white shadow-sm"
@@ -74,7 +76,7 @@ export function StatusPanel({ metrics }: StatusPanelProps) {
                             onClick={() => isAdmin && setOps('zambia')}
                             disabled={!isAdmin}
                             className={cn(
-                                "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer", // Increased padding and font size
+                                "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer",
                                 !isAdmin && "cursor-not-allowed",
                                 ops === 'zambia'
                                     ? "bg-blue-500 text-white shadow-sm"
@@ -90,27 +92,26 @@ export function StatusPanel({ metrics }: StatusPanelProps) {
                 <div className="grid grid-cols-3 gap-8">
                     <StatusColumn>
                         <Stat label="Total vehicles" value={m.total.toString().padStart(2, '0')} />
-                        <Stat label="Vehicles Idle" value={m.idle.toString().padStart(2, '0')} color="text-[#D98E04]" />
-                        <Stat label="Vehicles Not Working" value={m.offline.toString().padStart(2, '0')} color="text-[#EF4444]" />
-                        <Stat label="Vehicles Immobilized" value="00" />
+                        <Stat label="Moving" value={m.moving.toString().padStart(2, '0')} color="text-[#1FB919]" />
+                        <Stat label="Stopped" value={m.stopped.toString().padStart(2, '0')} color="text-[#3B82F6]" />
                     </StatusColumn>
 
                     <StatusColumn>
-                        <Stat label="Vehicles Moving" value={m.moving.toString().padStart(2, '0')} color="text-[#1FB919]" />
-                        <Stat label="Vehicles Stopped" value={m.stopped.toString().padStart(2, '0')} color="text-[#3B82F6]" />
-                        <Stat label="Vehicles Discharged" value="00" />
-                        <Stat label="Vehicles Removed" value="00" />
+                        <Stat label="Parked" value={m.parked.toString().padStart(2, '0')} color="text-[#9CA3AF]" />
+                        <Stat label="Idle-Stopped" value={m.idle_stopped.toString().padStart(2, '0')} color="text-[#D98E04]" />
+                        <Stat label="Idle-Parked" value={m.idle_parked.toString().padStart(2, '0')} color="text-[#D98E04]" />
                     </StatusColumn>
 
                     <StatusColumn>
-                        <Stat label="Not Online" value={m.not_online.toString().padStart(2, '0')} color="text-[#9CA3AF]" />
-                        <Stat label="On Job" value="00" />
-                        <Stat label="Late" value="00" />
-                        {/* 4th slot is empty, controls will float here visually */}
+                        <Stat label="Offline" value={m.offline.toString().padStart(2, '0')} color="text-[#EF4444]" />
+                        <Stat 
+                            label="Fleet Pulse" 
+                            value={`${m.movingPct.toString().padStart(2, '0')}`} 
+                            unit="%" 
+                            color={m.movingPct < 30 ? "text-red-500" : m.movingPct <= 60 ? "text-yellow-500" : "text-green-500"} 
+                        />
                     </StatusColumn>
                 </div>
-
-                {/* Bottom Controls - Absolute Positioned */}
 
             </div>
         </section>
@@ -124,16 +125,23 @@ function StatusColumn({ children }: { children: React.ReactNode }) {
 function Stat({
     label,
     value,
+    unit,
     color,
 }: {
     label: string
     value: string
+    unit?: string
     color?: string
 }) {
     return (
-        <div className="flex justify-between gap-4">
-            <span className={`font-semibold w-5 ${color ?? "text-foreground"}`}>{value}</span>
-            <span className={`${color ? color : "text-foreground/85"} text-left flex-1`}>{label}</span>
+        <div className="flex items-center gap-3">
+            <div className={cn("w-[70px] font-bold shrink-0", color ?? "text-foreground")}>
+                {value}
+                {unit && <span className="text-[10px] ml-0.5 font-normal uppercase opacity-70">{unit}</span>}
+            </div>
+            <span className={cn("text-left whitespace-nowrap", color ? color : "text-foreground/80")}>
+                {label}
+            </span>
         </div>
     )
 }

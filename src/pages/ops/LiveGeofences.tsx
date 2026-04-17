@@ -146,7 +146,7 @@ export default function LiveGeofences() {
     }
 
     return (
-        <div className={cn("flex flex-col h-full bg-surface-main transition-all duration-500 overflow-hidden", !showSidebar ? "p-4" : "p-6 lg:p-8 gap-6")}>
+        <div className={cn("flex flex-col flex-1 min-h-0 bg-surface-main transition-all duration-500 overflow-hidden", !showSidebar ? "p-4" : "p-6 lg:p-8 gap-6")}>
 
             {/* Premium Header - Standalone Card */}
             {!isLocked && (
@@ -230,6 +230,11 @@ export default function LiveGeofences() {
                                 trackerLabels={trackerLabels}
                                 monitoredZoneIds={monitoredZoneIds}
                                 onMonitorZones={setMonitoredZoneIds}
+                                onSelectZone={(id) => {
+                                    setSelectedZoneId(id);
+                                    setCurrentView('geofences');
+                                    setPanelViewMode('detail');
+                                }}
                             />
                         </div>
                     ) : (

@@ -12,8 +12,7 @@ import { OpsProvider } from "./context/OpsContext"
 import { AuthProvider } from "./context/AuthContext"
 import { ProtectedRoute } from "./components/auth/ProtectedRoute"
 import { CompliancePage } from "./pages/compliance/CompliancePage"
-import { DriverScore } from "./pages/DriverScore"
-import { DriverScoreLogic } from "./pages/DriverScoreLogic"
+import { DriverScorePage } from "./pages/driver-scores/DriverScorePage"
 import LiveGeofences from "./pages/ops/LiveGeofences"
 import LiveFleet from "./pages/ops/LiveFleet"
 import LiveSpeed from "./pages/ops/LiveSpeed"
@@ -71,8 +70,7 @@ function Layout() {
           <Route path="/turnaround-time" element={<TurnaroundTime />} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/vehicle/*" element={<Vehicle />} />
-          <Route path="/vehicle/driver-score" element={<DriverScore />} />
-          <Route path="/vehicle/score-logic" element={<DriverScoreLogic />} />
+          <Route path="/driver-scores" element={<DriverScorePage />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/fleet-ai" element={<FleetAI />} />
