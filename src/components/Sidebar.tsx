@@ -2,21 +2,27 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { 
     Menu, Home as HomeIcon, ShieldCheck, LocateFixed, Activity, LineChart, Gauge, Clock, 
-    AlertCircle, ChevronDown, Package, DoorOpen, MapPin, Cpu, FlaskConical 
+    AlertCircle, ChevronDown, Package, DoorOpen, MapPin, Cpu, FlaskConical, Sun, Moon 
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { MarqueeText } from "./ui/MarqueeText";
+import { useTheme } from "@/context/ThemeProvider";
 
 export function Sidebar({ isLocked = false }: { isLocked?: boolean }) {
     const location = useLocation();
     const navigate = useNavigate();
+    const { resolved, setTheme } = useTheme();
     const [isExpanded, setIsExpanded] = useState(false);
     const [isTatOpen, setIsTatOpen] = useState(false);
     const [lockMessage, setLockMessage] = useState<{ text: string, x: number, y: number } | null>(null);
     const sidebarRef = useRef<HTMLElement>(null);
 
     const toggleSidebar = () => setIsExpanded(!isExpanded);
+
+    const toggleTheme = () => {
+        setTheme(resolved === 'dark' ? 'light' : 'dark');
+    };
 
     // Auto-minimize on outside click
     useEffect(() => {
@@ -230,6 +236,32 @@ export function Sidebar({ isLocked = false }: { isLocked?: boolean }) {
                 />
 
             </nav>
+
+            {/* Bottom: Theme Toggle */}
+            <div className={cn("mt-auto pb-6 w-full flex shrink-0", isExpanded ? "justify-start px-2" : "justify-center")}>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                        "h-10 w-10 rounded-full hover:bg-muted text-muted-foreground transition-all duration-200 group/theme",
+                        isExpanded && "w-full justify-start px-3 gap-3"
+                    )}
+                    onClick={toggleTheme}
+                    title={resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                    <div className="flex items-center justify-center transition-colors group-hover/theme:text-foreground">
+                        {resolved === 'dark'
+                            ? <Sun className="h-5 w-5" strokeWidth={1.5} />
+                            : <Moon className="h-5 w-5" strokeWidth={1.5} />
+                        }
+                    </div>
+                    {isExpanded && (
+                        <span className="text-sm font-medium whitespace-nowrap overflow-hidden animate-in fade-in duration-300">
+                            {resolved === 'dark' ? 'Day Mode' : 'Night Mode'}
+                        </span>
+                    )}
+                </Button>
+            </div>
         </aside>
     );
 }

@@ -11,17 +11,13 @@ import { UserDropdown } from "./auth/UserDropdown";
 import { CreateUserModal } from "./auth/CreateUserModal";
 
 export function TopNav({ isLocked = false }: { isLocked?: boolean }) {
-    const { resolved, setTheme } = useTheme();    // Auth Hooks
+    const { resolved } = useTheme();
     const { logout, checkPermission } = useAuth();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [lockMessage, setLockMessage] = useState<{ text: string, x: number, y: number } | null>(null);
 
     const logoSrc = resolved === 'dark' ? unifleetLogoDark : unifleetLogo;
     const isAdmin = checkPermission('admin_only');
-
-    const toggleTheme = () => {
-        setTheme(resolved === 'dark' ? 'light' : 'dark');
-    };
 
     const handleLogout = () => {
         if (isLocked) return;
@@ -116,21 +112,6 @@ export function TopNav({ isLocked = false }: { isLocked?: boolean }) {
                             <LogOut className="h-5 w-5" strokeWidth={1.5} />
                         </Button>
                     )}
-
-                    {/* Dark / Light toggle */}
-                    <div className="h-5 w-px bg-border mx-0.5"></div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-full hover:bg-muted text-muted-foreground"
-                        onClick={toggleTheme}
-                        title={resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                    >
-                        {resolved === 'dark'
-                            ? <Sun className="h-5 w-5" strokeWidth={1.5} />
-                            : <Moon className="h-5 w-5" strokeWidth={1.5} />
-                        }
-                    </Button>
                 </div>
             </div>
 
