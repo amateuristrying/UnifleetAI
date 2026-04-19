@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button"
-import { Plus, LogOut, Sun, Moon, AlertCircle } from "lucide-react"
+import { Plus, LogOut, AlertCircle } from "lucide-react"
 import { NavLink } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeProvider"
