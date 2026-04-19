@@ -1,12 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import {
-    Timer,
     TrendingUp,
     Zap,
     Moon,
     AlertTriangle,
-    Trophy,
-    Fuel,
     Route as RouteIcon,
     Clock,
     Wrench,

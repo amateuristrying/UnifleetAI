@@ -125,7 +125,7 @@ export const ParticleBackground: React.FC = () => {
                 this.pulse += this.pulseSpeed;
             }
 
-            draw() {
+            draw(ctx: CanvasRenderingContext2D) {
                 const pulseFactor = 0.9 + 0.1 * Math.sin(this.pulse);
                 const currentAlpha = this.alpha * pulseFactor;
                 const currentSize = this.size * (0.95 + 0.05 * Math.sin(this.pulse));
@@ -185,7 +185,7 @@ export const ParticleBackground: React.FC = () => {
 
             for (let i = 0; i < particles.length; i++) {
                 particles[i].update(time);
-                particles[i].draw();
+                particles[i].draw(ctx);
             }
 
             animationFrameId = requestAnimationFrame(animate);
