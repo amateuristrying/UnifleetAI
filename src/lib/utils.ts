@@ -42,3 +42,47 @@ export function formatTimeAgo(dateInput: string | Date | undefined): string {
     return `${Math.floor(diffInSeconds / 86400)}d ago`;
 }
 
+/**
+ * Validates if a vehicle label is a "real" name and not noise (scientific notation, tests, etc.)
+ */
+export function isCleanVehicleLabel(label: string): boolean {
+    if (!label) return false;
+
+    const noiseKeywords = [
+        'removed',
+        'sold',
+        'test',
+        'iringa',
+        'object',
+        'okay',
+        'test vehicle'
+    ];
+
+    const lowerLabel = label.toLowerCase().trim();
+
+    // Check for noise keywords
+    if (noiseKeywords.some(keyword => lowerLabel.includes(keyword))) {
+        return false;
+    }
+
+    // Check for scientific notation (e.g., 2.55354E+17)
+    if (label.includes('E+') || label.includes('e+')) {
+        return false;
+    }
+
+    // Check if it's just a long number (likely an IMEI or ID)
+    // Most vehicle labels have spaces and letters
+    const justDigits = label.replace(/\s/g, '');
+    if (/^\d+$/.test(justDigits) && justDigits.length > 5) {
+        return false;
+    }
+
+    // Check for very short strings that aren't likely vehicles
+    if (lowerLabel.length < 3) return false;
+    
+    // Check for repeating characters (sometimes test data looks like "aaaaa")
+    if (/^(.)\1{4,}$/.test(lowerLabel)) return false;
+
+    return true;
+}
+

@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { NavixyService } from '@/services/navixy';
 import { useNavixyRealtime } from '@/hooks/useNavixyRealtime';
 import { Gauge, Search, Download, ShieldCheck, X, Zap } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, isCleanVehicleLabel } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -53,7 +53,10 @@ export default function LiveSpeed() {
                 const labels: Record<number, string> = {};
                 list.forEach((t: any) => {
                     const id = t.source?.id || t.id;
-                    if (id) labels[id] = t.label;
+                    const label = t.label || t.name || "";
+                    if (id && isCleanVehicleLabel(label)) {
+                        labels[id] = label;
+                    }
                 });
                 setTrackerLabels(labels);
             }

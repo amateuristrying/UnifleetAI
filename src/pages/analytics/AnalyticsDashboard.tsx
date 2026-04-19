@@ -20,98 +20,66 @@ export default function AnalyticsDashboard() {
     const navigate = useNavigate();
     const { ops, setOps } = useOps();
 
-    const analyticsGroups = [
+    const analyticsItems = [
         {
-            title: "Core Fleet Analytics",
-            items: [
-                {
-                    title: "Corridor Analytics",
-                    description: "Monitor end-to-end trip logic, stoppage times, and overall route performance.",
-                    icon: <TrendingUp className="text-blue-500" size={24} />,
-                    path: "/corridor-analytics",
-                    active: true
-                },
-                {
-                    title: "Turnaround Time (TAT)",
-                    description: "Assess complete turnaround cycles, loading/unloading efficiency metrics.",
-                    icon: <Timer className="text-amber-500" size={24} />,
-                    path: "/turnaround-time",
-                    active: true
-                },
-                {
-                    title: "Driver Scoreboard",
-                    description: "Comprehensive ranking and evaluation of driver safety, speed, and behavior.",
-                    icon: <Trophy className="text-emerald-500" size={24} />,
-                    path: "/vehicle/driver-score",
-                    active: true
-                },
-                {
-                    title: "Fleet Efficiency Analytics",
-                    description: "Overall fleet uptime, utilization rates, and operational efficiency insights.",
-                    icon: <Zap className="text-yellow-500" size={24} />,
-                    path: "/analytics/efficiency",
-                    active: false
-                }
-            ]
+            title: "Corridor Analytics",
+            description: "Monitor end-to-end trip logic, stoppage times, and overall route performance.",
+            icon: <TrendingUp className="text-blue-500" size={24} />,
+            path: "/corridor-analytics",
+            active: true
         },
         {
-            title: "Fleet Surveillance & Safety",
-            items: [
-                {
-                    title: "Unsupervised Night Events",
-                    description: "Track unauthorized nighttime driving and off-geofence parking events with full GPS data.",
-                    icon: <Moon className="text-indigo-500" size={24} />,
-                    path: "/analytics/unsupervised-night-events",
-                    active: true
-                },
-                {
-                    title: "Night Speeding Incidents",
-                    description: "Identify high-risk speeding events during night hours to strictly enforce driver safety.",
-                    icon: <AlertTriangle className="text-red-500" size={24} />,
-                    path: "/analytics/night-speeding",
-                    active: true
-                },
-                {
-                    title: "Fuel & Unproductive Idling Cost",
-                    description: "Correlate prolonged engine idling against estimated fuel burn to spot financial waste.",
-                    icon: <Fuel className="text-orange-500" size={24} />,
-                    path: "/analytics/idling",
-                    active: false
-                }
-            ]
+            title: "Fleet Efficiency Analytics",
+            description: "Overall fleet uptime, utilization rates, and operational efficiency insights.",
+            icon: <Zap className="text-yellow-500" size={24} />,
+            path: "/analytics/efficiency",
+            active: false
         },
         {
-            title: "Advanced AI Telematics",
-            items: [
-                {
-                    title: "Route Deviation & Adherence",
-                    description: "Highlight instances where drivers unlawfully exited standard, approved operational routes.",
-                    icon: <RouteIcon className="text-purple-500" size={24} />,
-                    path: "/analytics/route-deviation",
-                    active: false
-                },
-                {
-                    title: "Site Detention & Dwell Time",
-                    description: "Determine exact delays at customer endpoints vs transit time in the broader logistics chain.",
-                    icon: <Clock className="text-cyan-500" size={24} />,
-                    path: "/analytics/dwell-detention",
-                    active: false
-                },
-                {
-                    title: "Predictive Maintenance",
-                    description: "Predict next service dates instantly using ongoing mileages and real-time engine health markers.",
-                    icon: <Wrench className="text-slate-500" size={24} />,
-                    path: "/analytics/maintenance",
-                    active: false
-                },
-                {
-                    title: "Harsh Driving & G-Force Events",
-                    description: "Record hard braking, rapid acceleration, and dangerous cornering maneuvers on a geospatial map.",
-                    icon: <ActivitySquare className="text-rose-500" size={24} />,
-                    path: "/analytics/harsh-telematics",
-                    active: false
-                }
-            ]
+            title: "Unsupervised Night Events",
+            description: "Track unauthorized nighttime driving and off-geofence parking events with full GPS data.",
+            icon: <Moon className="text-indigo-500" size={24} />,
+            path: "/analytics/unsupervised-night-events",
+            active: true
+        },
+        {
+            title: "Night Speeding Incidents",
+            description: "Identify high-risk speeding events during night hours to strictly enforce driver safety.",
+            icon: <AlertTriangle className="text-red-500" size={24} />,
+            path: "/analytics/night-speeding",
+            active: true
+        },
+        {
+            title: "Route Deviation & Adherence",
+            description: "Highlight instances where drivers unlawfully exited standard, approved operational routes.",
+            icon: <RouteIcon className="text-purple-500" size={24} />,
+            path: "/analytics/route-deviation",
+            active: false,
+            comingSoon: true
+        },
+        {
+            title: "Site Detention & Dwell Time",
+            description: "Determine exact delays at customer endpoints vs transit time in the broader logistics chain.",
+            icon: <Clock className="text-cyan-500" size={24} />,
+            path: "/analytics/dwell-detention",
+            active: false,
+            comingSoon: true
+        },
+        {
+            title: "Predictive Maintenance",
+            description: "Predict next service dates instantly using ongoing mileages and real-time engine health markers.",
+            icon: <Wrench className="text-slate-500" size={24} />,
+            path: "/analytics/maintenance",
+            active: false,
+            comingSoon: true
+        },
+        {
+            title: "Harsh Driving & G-Force Events",
+            description: "Record hard braking, rapid acceleration, and dangerous cornering maneuvers on a geospatial map.",
+            icon: <ActivitySquare className="text-rose-500" size={24} />,
+            path: "/analytics/harsh-telematics",
+            active: false,
+            comingSoon: true
         }
     ];
 
@@ -152,61 +120,46 @@ export default function AnalyticsDashboard() {
                 </div>
             </div>
 
-            {/* Sub-groups */}
-            <div className="flex flex-col gap-12 pb-8">
-                {analyticsGroups.map((group, gIdx) => (
-                    <div key={gIdx} className="flex flex-col gap-4">
-                        <h2 className="text-sm font-black text-muted-foreground uppercase tracking-widest pl-2 flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-primary/50" />
-                            {group.title}
-                            {group.title === "Advanced AI Telematics" && (
-                                <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500">COMING SOON</span>
-                            )}
-                        </h2>
+            {/* Analytics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-8">
+                {analyticsItems.map((item, idx) => (
+                    <button
+                        key={idx}
+                        onClick={() => navigate(item.path)}
+                        className={cn(
+                            "group flex flex-col items-start p-6 text-left rounded-3xl border transition-all duration-300 relative overflow-hidden cursor-pointer",
+                            item.active
+                                ? "bg-surface-card border-border hover:border-primary/30 hover:shadow-lg hover:-translate-y-1"
+                                : "bg-surface-card border-border opacity-80 hover:opacity-100 hover:border-primary/20 hover:shadow-md hover:-translate-y-0.5"
+                        )}
+                    >
+                        {/* Abstract background shape on hover */}
+                        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors pointer-events-none" />
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {group.items.map((item, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => navigate(item.path)}
-                                    // disabled={!item.active} // Optional: currently allows navigation to show an empty/soon page
-                                    className={cn(
-                                        "group flex flex-col items-start p-6 text-left rounded-3xl border transition-all duration-300 relative overflow-hidden cursor-pointer",
-                                        item.active
-                                            ? "bg-surface-card border-border hover:border-primary/30 hover:shadow-lg hover:-translate-y-1"
-                                            : "bg-surface-card border-border opacity-80 hover:opacity-100 hover:border-primary/20 hover:shadow-md hover:-translate-y-0.5"
-                                    )}
-                                >
-                                    {/* Abstract background shape on hover */}
-                                    <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors pointer-events-none" />
-
-                                    <div className="flex items-center justify-between w-full mb-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-background border border-border shadow-sm flex items-center justify-center">
-                                            {item.icon}
-                                        </div>
-                                        <div className={cn("px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border",
-                                            item.active ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
-                                                group.title === "Advanced AI Telematics" ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
-                                                    "bg-slate-500/10 text-slate-500 border-slate-500/20")}>
-                                            {item.active ? "Active" : group.title === "Advanced AI Telematics" ? "Coming Soon" : "Module Ready"}
-                                        </div>
-                                    </div>
-
-                                    <h3 className="text-lg font-black text-foreground leading-tight tracking-tight mb-2 group-hover:text-primary transition-colors">
-                                        {item.title}
-                                    </h3>
-
-                                    <p className="text-sm text-muted-foreground font-medium leading-relaxed mb-6">
-                                        {item.description}
-                                    </p>
-
-                                    <div className="mt-auto flex items-center gap-2 text-xs font-bold text-foreground group-hover:text-primary mt-auto uppercase tracking-wide">
-                                        Open Module <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                                    </div>
-                                </button>
-                            ))}
+                        <div className="flex items-center justify-between w-full mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-background border border-border shadow-sm flex items-center justify-center">
+                                {item.icon}
+                            </div>
+                            <div className={cn("px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border",
+                                item.active ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                                    item.comingSoon ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
+                                        "bg-slate-500/10 text-slate-500 border-slate-500/20")}>
+                                {item.active ? "Active" : item.comingSoon ? "Coming Soon" : "Module Ready"}
+                            </div>
                         </div>
-                    </div>
+
+                        <h3 className="text-lg font-black text-foreground leading-tight tracking-tight mb-2 group-hover:text-primary transition-colors">
+                            {item.title}
+                        </h3>
+
+                        <p className="text-sm text-muted-foreground font-medium leading-relaxed mb-6">
+                            {item.description}
+                        </p>
+
+                        <div className="mt-auto flex items-center gap-2 text-xs font-bold text-foreground group-hover:text-primary uppercase tracking-wide">
+                            Open Module <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </button>
                 ))}
             </div>
         </div>

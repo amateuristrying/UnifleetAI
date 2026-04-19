@@ -41,7 +41,7 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 0 0% 0%;
     --foreground: 210 40% 98%;
 
     --card: 220 20% 10%;
@@ -70,7 +70,8 @@
     --ring: 212.7 26.8% 83.9%;
 
     /* ── Semantic surface tokens (dark) ── */
-    --surface-main: #111827;
+    --background: 0 0% 0%;
+    --surface-main: transparent;
     --surface-card: #1F2937;
     --surface-raised: #374151;
   }

@@ -13,11 +13,12 @@ import { AuthProvider } from "./context/AuthContext"
 import { ProtectedRoute } from "./components/auth/ProtectedRoute"
 import { CompliancePage } from "./pages/compliance/CompliancePage"
 import { DriverScorePage } from "./pages/driver-scores/DriverScorePage"
+import { ParticleBackground } from "./components/ParticleBackground"
 import LiveGeofences from "./pages/ops/LiveGeofences"
 import LiveFleet from "./pages/ops/LiveFleet"
 import LiveSpeed from "./pages/ops/LiveSpeed"
 import CorridorAnalytics from "./pages/ops/CorridorAnalytics"
-import { TurnaroundTime } from "./pages/TurnaroundTime"
+// import { TurnaroundTime } from "./pages/TurnaroundTime" // Missing file, will be replaced by TAT v2 module soon
 import AnalyticsDashboard from "./pages/analytics/AnalyticsDashboard"
 import NightEvents from "./pages/analytics/NightEvents"
 import NightSpeeding from "./pages/analytics/NightSpeeding"
@@ -26,6 +27,7 @@ export default function App() {
   return (
     <OpsProvider>
       <AuthProvider>
+        <ParticleBackground />
         <Routes>
           <Route path="/login" element={<Login />} />
 
@@ -67,7 +69,7 @@ function Layout() {
           <Route path="/analytics/unsupervised-night-events" element={<NightEvents />} />
           <Route path="/analytics/night-speeding" element={<NightSpeeding />} />
           <Route path="/corridor-analytics" element={<CorridorAnalytics />} />
-          <Route path="/turnaround-time" element={<TurnaroundTime />} />
+          <Route path="/turnaround-time" element={<div className="p-8">Turnaround Time Module (Integrating...)</div>} />
           <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/vehicle/*" element={<Vehicle />} />
           <Route path="/driver-scores" element={<DriverScorePage />} />

@@ -31,7 +31,7 @@ import { NavixyService } from "../services/navixy";
 import Papa from "papaparse";
 import { useOps } from "../context/OpsContext";
 import { api } from "../context/config";
-import { cn } from "../lib/utils";
+import { cn, isCleanVehicleLabel } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 
 
@@ -320,6 +320,7 @@ export function Reports() {
                 const names = rows
                     .map((r: any) => r.Vehicle || r.vehicle || r.vehicle_number || r.tracker_name || "")
                     .filter(Boolean)
+                    .filter(isCleanVehicleLabel)
                     .sort();
                 setVehicleList([...new Set(names)]);
             } catch {
@@ -834,7 +835,7 @@ export function Reports() {
         }
         if (!fleet || fleet.length === 0) return alert("No live fleet data found.");
 
-        let rows = [...fleet];
+        let rows = [...fleet].filter(v => isCleanVehicleLabel(v.tracker_name));
 
         setDownloadProgress("Checking geofence status...");
         const { data: activeGeofences, error: gfError } = await supabase
@@ -1068,18 +1069,20 @@ export function Reports() {
             const trackers = await NavixyService.listTrackers(sessionKey);
             if (!trackers || !trackers.length) return alert("No trackers found for this API Key.");
 
-            const rows = trackers.map((t: any, index: number) => {
-                return {
-                    "Sr No": index + 1,
-                    "Tracker ID": t.id,
-                    "Name": t.label || t.name || "",
-                    "Brand / Type": t.source?.vehicle_type_id || "Unknown",
-                    "Sim. Number": t.source?.phone || "",
-                    "Device Model": t.source?.model || "",
-                    "Created At": t.source?.creation_date || "",
-                    "Clone": t.clone ? "Yes" : "No"
-                };
-            });
+            const rows = trackers
+                .filter((t: any) => isCleanVehicleLabel(t.label || t.name))
+                .map((t: any, index: number) => {
+                    return {
+                        "Sr No": index + 1,
+                        "Tracker ID": t.id,
+                        "Name": t.label || t.name || "",
+                        "Brand / Type": t.source?.vehicle_type_id || "Unknown",
+                        "Sim. Number": t.source?.phone || "",
+                        "Device Model": t.source?.model || "",
+                        "Created At": t.source?.creation_date || "",
+                        "Clone": t.clone ? "Yes" : "No"
+                    };
+                });
 
             const csv = Papa.unparse(rows);
             downloadBlob(csv, `All_Trackers_${ops}_${new Date().toISOString().slice(0, 10)}.csv`);

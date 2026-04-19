@@ -12,7 +12,7 @@ import NavixyDataInspector from '@/components/ops/NavixyDataInspector';
 
 import { Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { NavixyService } from '@/services/navixy';
-import { cn } from '@/lib/utils';
+import { cn, isCleanVehicleLabel } from '@/lib/utils';
 import { CUSTOM_TRACKER_LABELS } from '@/config/vehicleDirectory';
 
 export default function LiveFleet() {
@@ -57,9 +57,10 @@ export default function LiveFleet() {
                     const ids: number[] = [];
                     list.forEach((t: any) => {
                         const id = t.source?.id || t.id;
-                        if (id) {
+                        const label = t.label || t.name || "";
+                        if (id && isCleanVehicleLabel(label)) {
                             ids.push(id);
-                            labels[id] = t.label;
+                            labels[id] = label;
                         }
                     });
                     setTrackerIds(ids);
